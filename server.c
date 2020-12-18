@@ -12,11 +12,12 @@
 #include "datastore.h"
 #include "protocol.h"
 
+int is_running = 1;
+
 // Wird ausgeführt, wenn das Programm ein SIGINT Signal bekommt.
-// Diese Funktion löscht die Hash Table, schließt alle offenen Sockets
-// und befreit Memory.
+// Diese Funktion setzt is_running auf false, damit nach dem while-loop Handling gemacht werden kann
 void close_handler(int num) {
-    ds_destruct();
+    is_running = 0;
 }
 
 // erstellt eine Verbindungssocket
@@ -78,16 +79,19 @@ int main(int argc, char *argv[]) {
     }
 
     struct sigaction sa;
+    memset(&sa, 0, sizeof(struct sigaction));
     sa.sa_handler = close_handler;
     sigaction(SIGINT, &sa, NULL);
+    sigaction(SIGHUP, &sa, NULL);
+    sigaction(SIGTERM, &sa, NULL);
 
-    while (1) {
+    while (is_running) {
         struct sockaddr_storage their_address;
         socklen_t addr_size = sizeof their_address;
 
         int connect_fd = accept(socket_fd, (struct sockaddr *)&their_address, &addr_size);
         if (connect_fd == -1) {
-            fprintf(stderr, "accept(): %s\n", strerror(errno));
+            if (errno != EINTR) fprintf(stderr, "accept(): %s\n", strerror(errno));
             continue;
         }
 
@@ -112,6 +116,9 @@ int main(int argc, char *argv[]) {
         free_hash_packet(request);
         free_hash_packet(response);
     }
+
+    close(socket_fd);
+    ds_destruct();
 
     return EXIT_SUCCESS;
 }
