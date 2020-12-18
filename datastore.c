@@ -43,15 +43,6 @@ hash_packet *ds_query(bytebuffer *key) {
     hash_packet *output = NULL;
     HASH_FIND(hh, hash_head, key->contents, key->length, output);
 
-    fprintf(stderr, "Checking for ");
-    print_bytebuffer(key);
-
-    if (output != NULL) {
-        fprintf(stderr, ": Found\n");
-    } else {
-        fprintf(stderr, ": Not found\n");
-    }
-
     return output;
 }
 
