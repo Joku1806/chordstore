@@ -27,7 +27,7 @@ hash_packet *get_blank_hash_packet() {
 }
 
 hash_packet *initialize_hash_packet_with_values(actions a, bytebuffer *key, bytebuffer *value) {
-    hash_packet *pkg = malloc(sizeof(hash_packet));
+    hash_packet *pkg = calloc(1, sizeof(hash_packet));
     if (pkg == NULL) {
         fprintf(stderr, "get_blank_hash_packet() -> malloc(): %s.\n", strerror(errno));
         return NULL;
