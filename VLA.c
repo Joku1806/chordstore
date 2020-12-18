@@ -1,3 +1,4 @@
+#include <math.h>
 #include "VLA.h"
 
 VLA* VLA_initialize_with_capacity(size_t cap) {
@@ -9,14 +10,15 @@ VLA* VLA_initialize_with_capacity(size_t cap) {
     return v;
 }
 
-void VLA_expand(VLA* v, size_t factor) {
-    v->capacity *= factor;
+void VLA_expand(VLA* v, double factor) {
+    // ceil() wird benutzt, damit man bei 1.x Faktoren über die 1er-capacity hinauskommt
+    v->capacity = (size_t)ceil(v->capacity * factor);
     v->items = realloc(v->items, sizeof(VLA_data) * v->capacity);
 }
 
 void VLA_insert(VLA* v, VLA_data item) {
     if (v->length == v->capacity) {
-        VLA_expand(v, 2);
+        VLA_expand(v, 1.5);
     }
 
     v->items[v->length] = item;
