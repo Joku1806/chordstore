@@ -1,11 +1,11 @@
-#ifndef PROTOCOL_H
-#define PROTOCOL_H
+#ifndef CRUD_PROTOCOL_H
+#define CRUD_PROTOCOL_H
 
 #include <stdint.h>
 #include "uthash.h"
 #include "bytebuffer.h"
 
-#define HEADER_SIZE 7
+#define HEADER_SIZE 6
 #define MAX_DATA_ACCEPT 512
 
 typedef enum {
@@ -29,9 +29,8 @@ hash_packet* initialize_hash_packet_with_values(actions a, bytebuffer* key, byte
 void free_hash_packet(hash_packet* pkg);
 
 // communication/conversion functions
-uint8_t* read_n_bytes_from_file(int fd, uint32_t amount);
-hash_packet* receive_hash_packet(int socket_fd);
-int write_n_bytes_to_file(int socket_fd, uint8_t* bytes, uint32_t amount);
+void parse_hash_control(int socket_fd, hash_packet* pkg, uint8_t* control);
+void receive_hash_packet(int socket_fd, hash_packet* pkg, parse_mode m);
 int send_hash_packet(int socket_fd, hash_packet* pkg);
 
 #endif
