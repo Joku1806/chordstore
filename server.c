@@ -10,7 +10,7 @@
 #include <unistd.h>
 #include <signal.h>
 #include "datastore.h"
-#include "protocol.h"
+#include "crud_protocol.h"
 
 int is_running = 1;
 

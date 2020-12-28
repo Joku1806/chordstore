@@ -5,7 +5,7 @@
 #include <netdb.h>
 #include <errno.h>
 #include <string.h>
-#include "protocol.h"
+#include "crud_protocol.h"
 #include "VLA.h"
 
 // Liest Bytes vom File Descriptor fd, bis die Verbindung beendet wird oder es nichts mehr zu lesen gibt.

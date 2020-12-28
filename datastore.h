@@ -1,7 +1,7 @@
 #ifndef DATASTORE_H
 #define DATASTORE_H
 
-#include "protocol.h"
+#include "crud_protocol.h"
 
 // database-specific functions
 hash_packet* execute_ds_action(hash_packet* pkg);

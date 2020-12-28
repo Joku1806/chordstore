@@ -7,7 +7,7 @@
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <unistd.h>
-#include "protocol.h"
+#include "crud_protocol.h"
 
 hash_packet *get_blank_hash_packet() {
     hash_packet *blank = malloc(sizeof(hash_packet));
