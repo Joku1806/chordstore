@@ -9,6 +9,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <signal.h>
+#include "peer.h"
 #include "datastore.h"
 #include "crud_protocol.h"
 
@@ -49,10 +50,47 @@ int connect_to_client(struct addrinfo *address_list) {
     return socket_fd;
 }
 
+int string_to_uint16(char *src, uint16_t *dest) {
+    char *parse_stop;
+    errno = 0;
+    long converted = strtol(src, &parse_stop, 10);
+
+    if (errno || parse_stop == src || *parse_stop != '\0' || converted < 0 || converted >= 0x10000) return 0;
+    *dest = (uint16_t)converted;
+    return 1;
+}
+
 int main(int argc, char *argv[]) {
-    if (argc != 2) {
-        fprintf(stderr, "Benutzung: %s <Port>\n", argv[0]);
+    if (argc != 10) {
+        fprintf(stderr, "Benutzung: %s <ID self> <Host self> <Port self>\n\t<ID prev> <Host prev> <Port prev>\n\t<ID next> <Host next> <Port next>\n", argv[0]);
         exit(EXIT_FAILURE);
+    }
+
+    peer population[3];
+
+    for (int i = 0; i < 9; i += 3) {
+        if (!string_to_uint16(argv[i], &population[i / 3].node_id)) {
+            fprintf(stderr, "Error converting node ID.\n");
+            exit(EXIT_FAILURE);
+        }
+        if (!string_to_uint16(argv[i + 2], &population[i / 3].node_port)) {
+            fprintf(stderr, "Error converting node port.\n");
+            exit(EXIT_FAILURE);
+        }
+
+        struct addrinfo peer_hints, *peer_address_list;
+        memset(&peer_hints, 0, sizeof peer_hints);
+        peer_hints.ai_family = AF_INET;        // nur über IPv4
+        peer_hints.ai_socktype = SOCK_STREAM;  // rede über TCP mit Server
+
+        int info_success = getaddrinfo(argv[i + 1], argv[i + 2], &peer_hints, &peer_address_list);
+        if (info_success != 0) {
+            fprintf(stderr, "getaddrinfo(): %s", gai_strerror(info_success));
+            return -1;
+        }
+
+        population[i / 3].node_ip = peer_address_list[0];
+        freeaddrinfo(peer_address_list);
     }
 
     struct addrinfo hints, *address_list;
