@@ -6,6 +6,7 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <unistd.h>
+#include <netdb.h>
 #include "protocol_utils.h"
 
 uint8_t* read_n_bytes_from_file(int fd, uint32_t amount) {
@@ -40,6 +41,46 @@ int write_n_bytes_to_file(int fd, uint8_t* bytes, uint32_t amount) {
     }
 
     return 0;
+}
+
+// Versucht, Hostname und Port zu einer Liste von IP-Adressen aufzulösen und dann
+// damit eine Verbindung aufzubauen.
+// Wenn eine Verbindung aufgebaut wurde, wird einfach der zugehörige erstellte Socket File Descriptor zurückgegeben.
+// Wenn keine Verbindung aufgebaut werden konnte, wird -1 als Fehlercode zurückgegeben.
+int establish_tcp_connection(char* host, char* port) {
+    struct addrinfo hints, *address_list;
+    memset(&hints, 0, sizeof hints);
+    hints.ai_family = AF_INET;        // nur IPv4 zulassen
+    hints.ai_socktype = SOCK_STREAM;  // rede über TCP mit Server
+
+    int info_success = getaddrinfo(host, port, &hints, &address_list);
+    if (info_success != 0) {
+        fprintf(stderr, "getaddrinfo(): %s", gai_strerror(info_success));
+        return -1;
+    }
+
+    int socket_fd = -1;
+    for (struct addrinfo* entry = address_list; entry != NULL; entry = entry->ai_next) {
+        if ((socket_fd = socket(entry->ai_family, entry->ai_socktype, entry->ai_protocol)) == -1) {
+            fprintf(stderr, "socket(): %s\n", strerror(errno));
+            continue;
+        }
+
+        if (connect(socket_fd, entry->ai_addr, entry->ai_addrlen) == -1) {
+            close(socket_fd);
+            fprintf(stderr, "connect(): %s\n", strerror(errno));
+            continue;
+        }
+
+        break;
+    }
+    freeaddrinfo(address_list);
+
+    if (socket_fd < 0) {
+        fprintf(stderr, "establish_tcp_connection() in %s:%d - Couldn't establish connection with %s on port %s.\n", __FILE__, __LINE__, host, port);
+    }
+
+    return socket_fd;
 }
 
 generic_packet* get_blank_unknown_packet() {

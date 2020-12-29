@@ -23,6 +23,7 @@ typedef struct {
 
 uint8_t* read_n_bytes_from_file(int fd, uint32_t amount);
 int write_n_bytes_to_file(int fd, uint8_t* bytes, uint32_t amount);
+int establish_tcp_connection(char* host, char* port);
 generic_packet* read_unknown_packet(int fd);
 
 #endif

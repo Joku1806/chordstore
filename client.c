@@ -5,6 +5,7 @@
 #include <netdb.h>
 #include <errno.h>
 #include <string.h>
+#include "protocol_utils.h"
 #include "crud_protocol.h"
 #include "VLA.h"
 
@@ -49,46 +50,6 @@ bytebuffer *read_from_file(int fd) {
     return buffer;
 }
 
-// Versucht, Hostname und Port zu einer Liste von IP-Adressen aufzulösen und dann
-// damit eine Verbindung aufzubauen.
-// Wenn eine Verbindung aufgebaut wurde, wird einfach der zugehörige erstellte Socket File Descriptor zurückgegeben.
-// Wenn keine Verbindung aufgebaut werden konnte, wird -1 als Fehlercode zurückgegeben.
-int establish_socket_connection(char *host, char *port) {
-    struct addrinfo hints, *address_list;
-    memset(&hints, 0, sizeof hints);
-    hints.ai_family = AF_UNSPEC;      // egal ob IPv4 oder IPv6
-    hints.ai_socktype = SOCK_STREAM;  // rede über TCP mit Server
-
-    int info_success = getaddrinfo(host, port, &hints, &address_list);
-    if (info_success != 0) {
-        fprintf(stderr, "getaddrinfo(): %s", gai_strerror(info_success));
-        return -1;
-    }
-
-    int socket_fd = -1;
-    for (struct addrinfo *entry = address_list; entry != NULL; entry = entry->ai_next) {
-        if ((socket_fd = socket(entry->ai_family, entry->ai_socktype, entry->ai_protocol)) == -1) {
-            fprintf(stderr, "socket(): %s\n", strerror(errno));
-            continue;
-        }
-
-        if (connect(socket_fd, entry->ai_addr, entry->ai_addrlen) == -1) {
-            close(socket_fd);
-            fprintf(stderr, "connect(): %s\n", strerror(errno));
-            continue;
-        }
-
-        break;
-    }
-    freeaddrinfo(address_list);
-
-    if (socket_fd < 0) {
-        fprintf(stderr, "establish_socket_connection() in %s:%d - Couldn't establish connection with %s on port %s.\n", __FILE__, __LINE__, host, port);
-    }
-
-    return socket_fd;
-}
-
 int main(int argc, char **argv) {
     if (argc != 5) {
         printf("Benutzung: %s <Host> <Port> <Aktion> <Key>\n", argv[0]);
@@ -100,7 +61,7 @@ int main(int argc, char **argv) {
     char *action = argv[3];
     char *key = argv[4];
 
-    int connect_fd = establish_socket_connection(host, port);
+    int connect_fd = establish_tcp_connection(host, port);
     if (connect_fd < 0) {
         exit(EXIT_FAILURE);
     }
@@ -145,14 +106,15 @@ int main(int argc, char **argv) {
 
     // Erhalte Antwort vom Server und gebe im Fall GET auch das
     // Value aus, wenn es eins gibt.
-    hash_packet *response = receive_hash_packet(connect_fd);
+    hash_packet *response = get_blank_hash_packet();
+    receive_hash_packet(connect_fd, response, READ_CONTROL);
     if (!(response->action & ACK)) {
         fprintf(stderr, "main(): Request wasn't acknowledged by server, something went wrong on the server side.\n");
         exit(EXIT_FAILURE);
     }
 
-    // Gebe die Antwort nur aus, wenn GET und ACK beide gesetzt sind.
-    if (response->action & GET && response->action & ACK) {
+    // Gebe die Antwort nur aus, wenn GET gesetzt ist.
+    if (response->action & GET) {
         fwrite(response->value->contents, response->value->length, 1, stdout);
     }
 
