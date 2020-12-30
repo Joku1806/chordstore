@@ -5,15 +5,16 @@
 #include "uthash.h"
 
 typedef struct {
-    struct addrinfo* node_address;
+    uint32_t node_ip;
     uint16_t node_port;
     uint16_t node_id;
 } peer;
 
 typedef struct {
     UT_hash_handle hh;
-    uint16_t key;
+    int key;
     int fd;
-} keymap;
+    hash_packet* request;
+} client_info;
 
 #endif

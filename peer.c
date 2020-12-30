@@ -15,6 +15,9 @@
 #include "crud_protocol.h"
 #include "chord_protocol.h"
 
+// wird von uthash gebraucht, um Hash Table zu erstellen
+client_info *hash_head = NULL;
+
 int is_running = 1;
 
 // Wird ausgeführt, wenn das Programm ein SIGINT Signal bekommt.
@@ -24,7 +27,7 @@ void close_handler(int num) {
 }
 
 // erstellt eine Verbindungssocket
-int connect_to_client(struct addrinfo *address_list) {
+int setup_tcp_listener(struct addrinfo *address_list) {
     int socket_fd = -1;
 
     for (struct addrinfo *entry = address_list; entry != NULL; entry = entry->ai_next) {
@@ -46,6 +49,12 @@ int connect_to_client(struct addrinfo *address_list) {
         }
 
         break;
+    }
+
+    if (socket_fd != -1 && listen(socket_fd, 1) == -1) {
+        close(socket_fd);
+        fprintf(stderr, "listen(): %s\n", strerror(errno));
+        return -1;
     }
 
     freeaddrinfo(address_list);
@@ -99,7 +108,7 @@ int main(int argc, char *argv[]) {
             return -1;
         }
 
-        nodes[i / 3].node_address = peer_address_list;
+        nodes[i / 3].node_ip = ((struct sockaddr_in *)peer_address_list->ai_addr)->sin_addr.s_addr;
     }
 
     struct addrinfo hints, *address_list;
@@ -114,14 +123,9 @@ int main(int argc, char *argv[]) {
         exit(EXIT_FAILURE);
     }
 
-    int socket_fd = connect_to_client(address_list);
-    if (socket_fd == -1) {
+    int listener_fd = setup_tcp_listener(address_list);
+    if (listener_fd == -1) {
         fprintf(stderr, "Konnte keine Socket erstellen.\n");
-        exit(EXIT_FAILURE);
-    }
-
-    if (listen(socket_fd, 1) == -1) {
-        fprintf(stderr, "listen(): %s\n", strerror(errno));
         exit(EXIT_FAILURE);
     }
 
@@ -136,15 +140,12 @@ int main(int argc, char *argv[]) {
         struct sockaddr_storage their_address;
         socklen_t addr_size = sizeof their_address;
 
-        int connect_fd = accept(socket_fd, (struct sockaddr *)&their_address, &addr_size);
+        int connect_fd = accept(listener_fd, (struct sockaddr *)&their_address, &addr_size);
         if (connect_fd == -1) {
             if (errno != EINTR) fprintf(stderr, "accept(): %s\n", strerror(errno));
             continue;
         }
 
-        // Erhalte Request vom Client und informiere ihn danach darüber, dass man fertig gelesen hat.
-        // Das ist hier zwar nicht so kritisch wie im umgekehrten Fall, weil der Client ja weiß wieviel er schreiben muss,
-        // ist aber trotzdem gute Praxis.
         generic_packet *request = read_unknown_packet(connect_fd);
         if (request == NULL) {
             fprintf(stderr, "Error while parsing unknown packet.\n");
@@ -158,6 +159,11 @@ int main(int argc, char *argv[]) {
             uint16_t hash_value = 0;
             memcpy(&hash_value, pkg->key->contents, sizeof(uint16_t) > pkg->key->length ? pkg->key->length : sizeof(uint16_t));
 
+            client_info *new = malloc(sizeof(client_info));
+            new->key = hash_value;
+            new->fd = connect_fd;
+            HASH_ADD_INT(hash_head, key, new);
+
             if (hash_value < nodes[0].node_id) {
                 // Führe die Request vom Client aus und sende ihm zurück, ob das auch geklappt hat.
                 hash_packet *response = execute_ds_action(request);
@@ -169,8 +175,7 @@ int main(int argc, char *argv[]) {
                 free_hash_packet(request);
                 free_hash_packet(response);
             } else if (hash_value < nodes[2].node_id) {  // Nachricht ist für den Bereich zuständig, einfach Request an ihn weiterleiten
-                // TODO: connect_to_client() so umschreiben, dass man sich auch mit einem anderen Server verbinden kann
-                int peer_fd = connect_to_client(nodes[2].node_address);
+                int peer_fd = establish_tcp_connection_from_ip4(nodes[2].node_ip, nodes[2].node_port);
                 if (peer_fd == -1) {
                     fprintf(stderr, "Konnte keine Socket erstellen.\n");
                     exit(EXIT_FAILURE);
@@ -190,11 +195,10 @@ int main(int argc, char *argv[]) {
                 pkg->action = LOOKUP;
                 pkg->hash_id = hash_value;
                 pkg->node_id = nodes[0].node_id;
-                pkg->node_ip = nodes[0].node_address->ai_addr;
+                pkg->node_ip = nodes[0].node_ip;
                 pkg->node_port = nodes[0].node_port;
 
-                // TODO: connect_to_client() so umschreiben, dass man sich auch mit einem anderen Server verbinden kann
-                int peer_fd = connect_to_client(nodes[2].node_address);
+                int peer_fd = establish_tcp_connection_from_ip4(nodes[2].node_ip, nodes[2].node_port);
                 if (peer_fd == -1) {
                     fprintf(stderr, "Konnte keine Socket erstellen.\n");
                     exit(EXIT_FAILURE);
@@ -208,7 +212,19 @@ int main(int argc, char *argv[]) {
             chord_packet *pkg = (chord_packet *)request->contents;
 
             if (pkg->action == REPLY) {
-                // TODO: Hash-Table, damit man sich merken kann, an welchen Client die Antwort gesendet werden muss
+                client_info *client = NULL;
+                HASH_FIND_INT(hash_head, &pkg->hash_id, client);
+                if (client == NULL) {
+                    fprintf(stderr, "Kein Client hat Key %ld angefragt. Irgendetwas ist im Ring oder mit dem jeweiligen Client schiefgelaufen.\n", pkg->hash_id);
+                    continue;
+                    // TODO: bessere Fehlerbehebung, fds schließen etc
+                }
+                int peer_fd = establish_tcp_connection_from_ip4(pkg->node_ip, pkg->node_port);
+                send_hash_packet(peer_fd, client->request);
+                hash_packet *response = get_blank_hash_packet();
+                receive_hash_packet(peer_fd, response, READ_CONTROL);
+                send_hash_packet(client->fd, response);
+                // TODO: Beenden von mehreren Verbindungen, Löschen von Client/Key mapping, vielleicht eigene Funktion?
             } else if (pkg->action == LOOKUP) {
                 if (pkg->hash_id < nodes[2].node_id) {
                     chord_packet *reply = get_blank_chord_packet();
@@ -216,11 +232,11 @@ int main(int argc, char *argv[]) {
                     reply->action = REPLY;
                     reply->hash_id = pkg->hash_id;
                     reply->node_id = nodes[2].node_id;
-                    reply->node_ip = nodes[2].node_address->ai_addr;
+                    reply->node_ip = nodes[2].node_ip;
                     reply->node_port = nodes[2].node_port;
 
                 } else {
-                    int peer_fd = connect_to_client(nodes[2].node_address);
+                    int peer_fd = establish_tcp_connection_from_ip4(nodes[2].node_ip, nodes[2].node_port);
                     if (peer_fd == -1) {
                         fprintf(stderr, "Konnte keine Socket erstellen.\n");
                         exit(EXIT_FAILURE);
@@ -234,7 +250,7 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    close(socket_fd);
+    close(listener_fd);
     ds_destruct();
 
     return EXIT_SUCCESS;
