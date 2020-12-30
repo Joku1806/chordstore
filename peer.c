@@ -11,6 +11,7 @@
 #include <signal.h>
 #include "peer.h"
 #include "datastore.h"
+#include "protocol_utils.h"
 #include "crud_protocol.h"
 #include "chord_protocol.h"
 
@@ -145,14 +146,7 @@ int main(int argc, char *argv[]) {
             continue;
         }
 
-<<<<<<< HEAD
         generic_packet *request = read_unknown_packet(connect_fd);
-=======
-        // Erhalte Request vom Client und informiere ihn danach darüber, dass man fertig gelesen hat.
-        // Das ist hier zwar nicht so kritisch wie im umgekehrten Fall, weil der Client ja weiß wieviel er schreiben muss,
-        // ist aber trotzdem gute Praxis.
-        hash_packet *request = receive_hash_packet(connect_fd);
->>>>>>> 2c4620ce91d456fe0e400b43fdf385a70a59ac88
         if (request == NULL) {
             fprintf(stderr, "Error while parsing client request.\n");
             close(connect_fd);
@@ -160,7 +154,6 @@ int main(int argc, char *argv[]) {
         }
         shutdown(connect_fd, SHUT_RD);
 
-<<<<<<< HEAD
         if (request->type == PROTO_CRUD) {
             hash_packet *pkg = (hash_packet *)request->contents;
             uint16_t hash_value = 0;
@@ -255,17 +248,6 @@ int main(int argc, char *argv[]) {
                 }
             }
         }
-=======
-        // Führe die Request vom Client aus und sende ihm zurück, ob das auch geklappt hat.
-        hash_packet *response = execute_ds_action(request);
-
-        send_hash_packet(connect_fd, response);
-        shutdown(connect_fd, SHUT_WR);
-        close(connect_fd);
-
-        free_hash_packet(request);
-        free_hash_packet(response);
->>>>>>> 2c4620ce91d456fe0e400b43fdf385a70a59ac88
     }
 
     close(listener_fd);
