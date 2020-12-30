@@ -89,7 +89,7 @@ int main(int argc, char *argv[]) {
             return -1;
         }
 
-        population[i / 3].node_ip = peer_address_list[0];
+        population[i / 3].node_ip = peer_address_list;
         freeaddrinfo(peer_address_list);
     }
 
