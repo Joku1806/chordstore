@@ -27,7 +27,7 @@ void VLA_insert(VLA* v, VLA_data item) {
 
 void VLA_delete_by_index(VLA* v, size_t idx) {
     if (idx >= v->length) {
-        fprintf(stderr, "VLA_delete_by_index: Index %ld is out of bounds for VLA with length=%ld. Skipping deletion, check your indices.\n", idx, v->length);
+        fprintf(stderr, "VLA_delete_by_index(): Index %ld is out of bounds for VLA with length=%ld. Skipping deletion, check your indices.\n", idx, v->length);
         return;
     }
 
