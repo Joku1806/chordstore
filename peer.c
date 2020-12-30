@@ -65,6 +65,11 @@ int string_to_uint16(char *src, uint16_t *dest) {
     errno = 0;
     long converted = strtol(src, &parse_stop, 10);
 
+    // wirft einen Fehler, wenn:
+    // 1. in strtol() ein Fehler passiert ist
+    // 2. src schon am Anfang keine Zahl ist
+    // 3. src nur eine "partielle" Zahl ist (sowas wie 1234asdf)
+    // 4. die konvertierte Zahl zu klein/groß für ein uint16_t ist
     if (errno || parse_stop == src || *parse_stop != '\0' || converted < 0 || converted >= 0x10000) return 0;
     *dest = (uint16_t)converted;
     return 1;
@@ -76,6 +81,9 @@ int main(int argc, char *argv[]) {
         exit(EXIT_FAILURE);
     }
 
+    // nodes[0]: Eigene Node
+    // nodes[1]: Vorgängernode
+    // nodes[2]: Nachfolgernode
     peer nodes[3];
 
     for (int i = 0; i < 9; i += 3) {
@@ -104,7 +112,7 @@ int main(int argc, char *argv[]) {
 
     struct addrinfo hints, *address_list;
     memset(&hints, 0, sizeof hints);
-    hints.ai_family = AF_UNSPEC;      // egal ob IPv4 oder IPv6
+    hints.ai_family = AF_INET;        // nur IPv4 zulassen
     hints.ai_socktype = SOCK_STREAM;  // rede über TCP mit Client
     hints.ai_flags = AI_PASSIVE;      // fülle automatisch mit lokaler IP aus
 
