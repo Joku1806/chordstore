@@ -1,3 +1,15 @@
+
+/* TODO lookup()
+
+ */
+// Joining operations:
+/* TODO stabilize()
+    returns its predecessor B'=pred(B) to A by sending a notify(B') message
+ */
+/* TODO notify(B')
+    if B' is between A and B, A updates its successor to B'
+    A doesnt do anything otherwise
+ */
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
