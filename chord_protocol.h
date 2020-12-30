@@ -16,7 +16,7 @@ typedef struct {
     chord_action action;
     uint16_t hash_id;
     uint16_t node_id;
-    in_addr_t node_ip;
+    uint32_t node_ip;
     uint16_t node_port;
 } chord_packet;
 
