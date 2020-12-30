@@ -90,8 +90,7 @@ int main(int argc, char *argv[]) {
             return -1;
         }
 
-        population[i / 3].node_ip = peer_address_list[0];
-        freeaddrinfo(peer_address_list);
+        population[i / 3].node_address = peer_address_list;
     }
 
     struct addrinfo hints, *address_list;
