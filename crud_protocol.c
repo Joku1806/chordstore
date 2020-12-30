@@ -62,14 +62,14 @@ void receive_hash_packet(int socket_fd, hash_packet *pkg, parse_mode m) {
     if (ack_masked != GET && ack_masked != SET && ack_masked != DEL) {
         fprintf(stderr, "receive_hash_packet(): Illegal request parameter %#x.\n", pkg->action);
         free_hash_packet(pkg);
-        return NULL;
+        exit(EXIT_FAILURE);
     }
 
     uint8_t *header = read_n_bytes_from_file(socket_fd, HEADER_SIZE);
     if (header == NULL) {
         fprintf(stderr, "receive_hash_packet(): Couldn't get packet header.\n");
         free_hash_packet(pkg);
-        return NULL;
+        exit(EXIT_FAILURE);
     }
 
     uint16_t nw_key_length = 0;

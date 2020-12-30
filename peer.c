@@ -11,7 +11,6 @@
 #include <signal.h>
 #include "peer.h"
 #include "datastore.h"
-#include "protocol_utils.h"
 #include "crud_protocol.h"
 #include "chord_protocol.h"
 
@@ -66,11 +65,6 @@ int string_to_uint16(char *src, uint16_t *dest) {
     errno = 0;
     long converted = strtol(src, &parse_stop, 10);
 
-    // wirft einen Fehler, wenn:
-    // 1. in strtol() ein Fehler passiert ist
-    // 2. src schon am Anfang keine Zahl ist
-    // 3. src nur eine "partielle" Zahl ist (sowas wie 1234asdf)
-    // 4. die konvertierte Zahl zu klein/groß für ein uint16_t ist
     if (errno || parse_stop == src || *parse_stop != '\0' || converted < 0 || converted >= 0x10000) return 0;
     *dest = (uint16_t)converted;
     return 1;
@@ -82,9 +76,6 @@ int main(int argc, char *argv[]) {
         exit(EXIT_FAILURE);
     }
 
-    // nodes[0]: Eigene Node
-    // nodes[1]: Vorgängernode
-    // nodes[2]: Nachfolgernode
     peer nodes[3];
 
     for (int i = 0; i < 9; i += 3) {
@@ -113,7 +104,7 @@ int main(int argc, char *argv[]) {
 
     struct addrinfo hints, *address_list;
     memset(&hints, 0, sizeof hints);
-    hints.ai_family = AF_INET;        // nur IPv4 zulassen
+    hints.ai_family = AF_UNSPEC;      // egal ob IPv4 oder IPv6
     hints.ai_socktype = SOCK_STREAM;  // rede über TCP mit Client
     hints.ai_flags = AI_PASSIVE;      // fülle automatisch mit lokaler IP aus
 
@@ -146,14 +137,22 @@ int main(int argc, char *argv[]) {
             continue;
         }
 
+<<<<<<< HEAD
         generic_packet *request = read_unknown_packet(connect_fd);
+=======
+        // Erhalte Request vom Client und informiere ihn danach darüber, dass man fertig gelesen hat.
+        // Das ist hier zwar nicht so kritisch wie im umgekehrten Fall, weil der Client ja weiß wieviel er schreiben muss,
+        // ist aber trotzdem gute Praxis.
+        hash_packet *request = receive_hash_packet(connect_fd);
+>>>>>>> 2c4620ce91d456fe0e400b43fdf385a70a59ac88
         if (request == NULL) {
-            fprintf(stderr, "Error while parsing unknown packet.\n");
+            fprintf(stderr, "Error while parsing client request.\n");
             close(connect_fd);
             continue;
         }
         shutdown(connect_fd, SHUT_RD);
 
+<<<<<<< HEAD
         if (request->type == PROTO_CRUD) {
             hash_packet *pkg = (hash_packet *)request->contents;
             uint16_t hash_value = 0;
@@ -248,6 +247,17 @@ int main(int argc, char *argv[]) {
                 }
             }
         }
+=======
+        // Führe die Request vom Client aus und sende ihm zurück, ob das auch geklappt hat.
+        hash_packet *response = execute_ds_action(request);
+
+        send_hash_packet(connect_fd, response);
+        shutdown(connect_fd, SHUT_WR);
+        close(connect_fd);
+
+        free_hash_packet(request);
+        free_hash_packet(response);
+>>>>>>> 2c4620ce91d456fe0e400b43fdf385a70a59ac88
     }
 
     close(listener_fd);
