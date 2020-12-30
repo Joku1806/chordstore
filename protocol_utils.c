@@ -43,6 +43,31 @@ int write_n_bytes_to_file(int fd, uint8_t* bytes, uint32_t amount) {
     return 0;
 }
 
+int establish_tcp_connection_from_ip4(uint32_t ip4, uint16_t port) {
+    int socket_fd = -1;
+    struct sockaddr_in address = {
+        .sin_family = AF_INET,
+        .sin_addr = {
+            .s_addr = ip4,
+        },
+        .sin_port = port,
+    };
+    memset(&address.sin_zero, 0, sizeof(address.sin_zero));
+
+    if ((socket_fd = socket(AF_INET, SOCK_STREAM, PF_INET)) == -1) {
+        fprintf(stderr, "socket(): %s\n", strerror(errno));
+        return -1;
+    }
+
+    if (connect(socket_fd, &address, sizeof(address)) == -1) {
+        close(socket_fd);
+        fprintf(stderr, "connect(): %s\n", strerror(errno));
+        return -1;
+    }
+
+    return socket_fd;
+}
+
 // Versucht, Hostname und Port zu einer Liste von IP-Adressen aufzulösen und dann
 // damit eine Verbindung aufzubauen.
 // Wenn eine Verbindung aufgebaut wurde, wird einfach der zugehörige erstellte Socket File Descriptor zurückgegeben.
