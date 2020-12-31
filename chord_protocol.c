@@ -14,6 +14,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <errno.h>
+#include <netdb.h>
 #include "protocol_utils.h"
 #include "chord_protocol.h"
 
@@ -78,4 +79,52 @@ int send_chord_packet(int socket_fd, chord_packet *pkg) {
     }
 
     return 0;
+}
+
+int string_to_uint16(char *src, uint16_t *dest) {
+    char *parse_stop;
+    errno = 0;
+    long converted = strtol(src, &parse_stop, 10);
+
+    // wirft einen Fehler, wenn:
+    // 1. in strtol() ein Fehler passiert ist
+    // 2. src schon am Anfang keine Zahl ist
+    // 3. src nur eine "partielle" Zahl ist (sowas wie 1234asdf)
+    // 4. die konvertierte Zahl zu klein/groß für ein uint16_t ist
+    if (errno || parse_stop == src || *parse_stop != '\0' || converted < 0 || converted >= 0x10000) return 0;
+    *dest = (uint16_t)converted;
+    return 1;
+}
+
+peer *setup_ring_neighbours(char *information[]) {
+    // nodes[0]: Eigene Node
+    // nodes[1]: Vorgängernode
+    // nodes[2]: Nachfolgernode
+    peer nodes[3];
+
+    for (int i = 0; i < 9; i += 3) {
+        if (!string_to_uint16(information[i], &nodes[i / 3].node_id)) {
+            fprintf(stderr, "Error converting node ID.\n");
+            exit(EXIT_FAILURE);
+        }
+        if (!string_to_uint16(information[i + 2], &nodes[i / 3].node_port)) {
+            fprintf(stderr, "Error converting node port.\n");
+            exit(EXIT_FAILURE);
+        }
+
+        struct addrinfo peer_hints, *peer_address_list;
+        memset(&peer_hints, 0, sizeof peer_hints);
+        peer_hints.ai_family = AF_INET;        // nur IPv4 zulassen
+        peer_hints.ai_socktype = SOCK_STREAM;  // rede über TCP mit Server
+
+        int info_success = getaddrinfo(information[i + 1], information[i + 2], &peer_hints, &peer_address_list);
+        if (info_success != 0) {
+            fprintf(stderr, "getaddrinfo(): %s", gai_strerror(info_success));
+            return -1;
+        }
+
+        nodes[i / 3].node_ip = ((struct sockaddr_in *)peer_address_list->ai_addr)->sin_addr.s_addr;
+    }
+
+    return nodes;
 }
