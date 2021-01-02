@@ -5,8 +5,7 @@
 #include <netdb.h>
 #include <errno.h>
 #include <string.h>
-#include "protocol_utils.h"
-#include "crud_protocol.h"
+#include "protocol.h"
 #include "VLA.h"
 
 // Liest Bytes vom File Descriptor fd, bis die Verbindung beendet wird oder es nichts mehr zu lesen gibt.
@@ -70,7 +69,7 @@ int main(int argc, char **argv) {
     key_buffer->contents_are_freeable = 0;  // key liegt auf dem Stack, free() geht also nicht
     bytebuffer *value_buffer;
 
-    actions a = 0;
+    crud_action a = 0;
     if (strcmp(action, "GET") == 0) {
         a |= GET;
         value_buffer = initialize_bytebuffer_with_values(NULL, 0);
@@ -96,18 +95,18 @@ int main(int argc, char **argv) {
     // shutdown(connect_fd, SHUT_WR) darüber, dass man auch fertig geschrieben hat.
     // In manchen Fällen kann es sonst passieren, dass der Server weiter versucht, von der Socket zu lesen,
     // obwohl nichts mehr gesendet wird.
-    hash_packet *packet = initialize_hash_packet_with_values(a, key_buffer, value_buffer);
-    if (send_hash_packet(connect_fd, packet) < 0) {
+    crud_packet *packet = initialize_crud_packet_with_values(a, key_buffer, value_buffer);
+    if (send_crud_packet(connect_fd, packet) < 0) {
         fprintf(stderr, "main(): Failed to send packet to server.\n");
         exit(EXIT_FAILURE);
     }
-    free_hash_packet(packet);
+    free_crud_packet(packet);
     shutdown(connect_fd, SHUT_WR);
 
     // Erhalte Antwort vom Server und gebe im Fall GET auch das
     // Value aus, wenn es eins gibt.
-    hash_packet *response = get_blank_hash_packet();
-    receive_hash_packet(connect_fd, response, READ_CONTROL);
+    crud_packet *response = get_blank_crud_packet();
+    receive_crud_packet(connect_fd, response, READ_CONTROL);
     if (!(response->action & ACK)) {
         fprintf(stderr, "main(): Request wasn't acknowledged by server, something went wrong on the server side.\n");
         exit(EXIT_FAILURE);
@@ -118,7 +117,7 @@ int main(int argc, char **argv) {
         fwrite(response->value->contents, response->value->length, 1, stdout);
     }
 
-    free_hash_packet(response);
+    free_crud_packet(response);
     close(connect_fd);
     return EXIT_SUCCESS;
 }
