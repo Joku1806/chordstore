@@ -66,7 +66,7 @@ typedef struct {
 crud_packet* get_blank_crud_packet();
 crud_packet* initialize_crud_packet_with_values(crud_action a, bytebuffer* key, bytebuffer* value);
 void free_crud_packet(crud_packet* pkg);
-void parse_hash_control(int socket_fd, crud_packet* pkg, uint8_t* control);
+void parse_crud_control(int socket_fd, crud_packet* pkg, uint8_t* control);
 void receive_crud_packet(int socket_fd, crud_packet* pkg, parse_mode m);
 int send_crud_packet(int socket_fd, crud_packet* pkg);
 
@@ -78,6 +78,7 @@ peer* setup_ring_neighbours(char* information[]);
 
 uint8_t* read_n_bytes_from_file(int fd, uint32_t amount);
 int write_n_bytes_to_file(int fd, uint8_t* bytes, uint32_t amount);
+char* ip4_to_string(struct in_addr* ip4);
 int establish_tcp_connection_from_ip4(uint32_t ip4, uint16_t port);
 int establish_tcp_connection(char* host, char* port);
 int setup_tcp_listener(char* port);

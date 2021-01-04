@@ -62,15 +62,22 @@ int send_chord_packet(int socket_fd, chord_packet *pkg) {
     uint32_t nw_node_ip = htonl(pkg->node_ip);
     uint16_t nw_node_port = htons(pkg->node_port);
 
+    struct in_addr ip_wrapper = {
+        .s_addr = pkg->node_ip};
+    char *ip4_repr = ip4_to_string(&ip_wrapper);
+    debug("Now sending chord packet with header %#x, action = %d, Hash ID = %d to %s:%d.\n", header, pkg->action, pkg->hash_id, ip4_repr, pkg->node_port);
+
     if (write_n_bytes_to_file(socket_fd, &header, sizeof(uint8_t)) < 0 ||
         write_n_bytes_to_file(socket_fd, (uint8_t *)&nw_hash_id, sizeof(uint16_t)) < 0 ||
         write_n_bytes_to_file(socket_fd, (uint8_t *)&nw_node_id, sizeof(uint16_t)) < 0 ||
         write_n_bytes_to_file(socket_fd, (uint8_t *)&nw_node_ip, sizeof(uint32_t)) < 0 ||
         write_n_bytes_to_file(socket_fd, (uint8_t *)&nw_node_port, sizeof(uint16_t)) < 0) {
-        warn("Failed to send packet.\n");
+        warn("Failed to send packet to %s:%d.\n", ip4_repr, pkg->node_port);
+        free(ip4_repr);
         return -1;
     }
 
+    free(ip4_repr);
     return 0;
 }
 
@@ -157,15 +164,16 @@ void free_crud_packet(crud_packet *pkg) {
     free(pkg);
 }
 
-void parse_hash_control(int socket_fd, crud_packet *pkg, uint8_t *control) {
+void parse_crud_control(int socket_fd, crud_packet *pkg, uint8_t *control) {
     pkg->reserved = control[0] >> 4;
     pkg->action = control[0] & 0x0f;
+    debug("Got action %d from control byte %#x\n", pkg->action, control[0]);
 }
 
 void receive_crud_packet(int socket_fd, crud_packet *pkg, parse_mode m) {
     if (m == READ_CONTROL) {
         uint8_t *control = read_n_bytes_from_file(socket_fd, 1);
-        parse_hash_control(socket_fd, pkg, control);
+        parse_crud_control(socket_fd, pkg, control);
         free(control);
     }
 
@@ -251,6 +259,12 @@ int write_n_bytes_to_file(int fd, uint8_t *bytes, uint32_t amount) {
     return 0;
 }
 
+char *ip4_to_string(struct in_addr *ip4) {
+    char *ip4_repr = malloc(INET_ADDRSTRLEN);
+    inet_ntop(AF_INET, ip4, ip4_repr, INET_ADDRSTRLEN);
+    return ip4_repr;
+}
+
 int establish_tcp_connection_from_ip4(uint32_t ip4, uint16_t port) {
     int socket_fd = -1;
     struct sockaddr_in address = {
@@ -262,11 +276,10 @@ int establish_tcp_connection_from_ip4(uint32_t ip4, uint16_t port) {
     };
     memset(&address.sin_zero, 0, sizeof(address.sin_zero));
 
-    char ip4_repr[INET_ADDRSTRLEN];
-    inet_ntop(AF_INET, &(address.sin_addr), ip4_repr, INET_ADDRSTRLEN);
-
+    char *ip4_repr = ip4_to_string(&address.sin_addr);
     if ((socket_fd = socket(PF_INET, SOCK_STREAM, 0)) == -1) {
         warn("%s\n", strerror(errno));
+        free(ip4_repr);
         return -1;
     }
 
@@ -275,6 +288,7 @@ int establish_tcp_connection_from_ip4(uint32_t ip4, uint16_t port) {
         if (i == CONNECTION_RETRIES - 1) {
             close(socket_fd);
             warn("Couldn't establish a connection with %s:%d.\n", ip4_repr, port);
+            free(ip4_repr);
             return -1;
         }
 
@@ -286,6 +300,7 @@ int establish_tcp_connection_from_ip4(uint32_t ip4, uint16_t port) {
         nanosleep(&ts, &ts);
     }
 
+    free(ip4_repr);
     return socket_fd;
 }
 
@@ -365,7 +380,7 @@ int setup_tcp_listener(char *port) {
         break;
     }
 
-    if (listen(socket_fd, 1) == -1) {
+    if (listen(socket_fd, 10) == -1) {
         close(socket_fd);
         warn("%s\n", strerror(errno));
         return -1;
@@ -393,7 +408,7 @@ generic_packet *read_unknown_packet(int fd) {
     switch (proto_type) {
         case PROTO_CRUD: {
             crud_packet *pkg = get_blank_crud_packet();
-            parse_hash_control(fd, pkg, control);
+            parse_crud_control(fd, pkg, control);
             receive_crud_packet(fd, pkg, SKIP_CONTROL);
             wrapper->type = PROTO_CRUD;
             wrapper->contents = (void *)pkg;
