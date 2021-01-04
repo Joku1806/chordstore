@@ -74,6 +74,7 @@ int main(int argc, char *argv[]) {
                 // data is ready to recv() on this socket
                 if (pfds_item.fd == listener_fd) {
                     // socket is main socket
+                    debug("Got new connection on listener socket (fd=%d)\n", listener_fd);
                     int connect_fd = accept(listener_fd, (struct sockaddr *)&their_address, &addr_size);
                     if (connect_fd == -1) {
                         if (errno != EINTR) warn("%s\n", strerror(errno));
@@ -81,7 +82,7 @@ int main(int argc, char *argv[]) {
                     }
                     VLA_data new_connection = {
                         .fd_status.fd = connect_fd,
-                        .fd_status.events = POLLIN | POLLOUT,
+                        .fd_status.events = POLLIN,
                     };
                     VLA_insert(pfds_VLA, new_connection);
                 } else {

@@ -32,7 +32,7 @@ crud_packet *execute_ds_action(crud_packet *pkg) {
             if (ds_delete(pkg->key) >= 0) response->action |= ACK;
             return response;
         default:
-            warn("execute_ds_action(): Illegal request parameter %#x. Something is getting through struct un/packing functions!\n", pkg->action);
+            warn("Illegal request parameter %#x. Something is getting through struct un/packing functions!\n", pkg->action);
             return NULL;
     }
 }
