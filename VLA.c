@@ -18,6 +18,7 @@ void VLA_expand(VLA* v, double factor) {
 }
 
 void VLA_insert(VLA* v, VLA_data item) {
+    // debug("Now inserting element with fd=%d and events=%#x or byte %#x\n", item.fd_status.fd, item.fd_status.events, item.byte);
     if (v->length == v->capacity) {
         VLA_expand(v, 1.5);
     }
