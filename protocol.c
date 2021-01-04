@@ -7,12 +7,14 @@
 #include <sys/socket.h>
 #include <unistd.h>
 #include <netdb.h>
+#include <time.h>
 #include "protocol.h"
+#include "debug.h"
 
 chord_packet *get_blank_chord_packet() {
     chord_packet *blank = malloc(sizeof(chord_packet));
     if (blank == NULL) {
-        fprintf(stderr, "get_blank_chord_packet() -> malloc(): %s.\n", strerror(errno));
+        warn("%s\n", strerror(errno));
         return NULL;
     }
 
@@ -65,7 +67,7 @@ int send_chord_packet(int socket_fd, chord_packet *pkg) {
         write_n_bytes_to_file(socket_fd, (uint8_t *)&nw_node_id, sizeof(uint16_t)) < 0 ||
         write_n_bytes_to_file(socket_fd, (uint8_t *)&nw_node_ip, sizeof(uint32_t)) < 0 ||
         write_n_bytes_to_file(socket_fd, (uint8_t *)&nw_node_port, sizeof(uint16_t)) < 0) {
-        fprintf(stderr, "send_chord_packet(): Failed to send packet.\n");
+        warn("Failed to send packet.\n");
         return -1;
     }
 
@@ -93,14 +95,12 @@ peer *setup_ring_neighbours(char *information[]) {
     // nodes[2]: Nachfolgernode
     peer *nodes = calloc(3, sizeof(peer));
 
-    for (int i = 0; i < 9; i += 3) {
+    for (int i = 1; i < 10; i += 3) {
         if (!string_to_uint16(information[i], &nodes[i / 3].node_id)) {
-            fprintf(stderr, "Error converting node ID.\n");
-            exit(EXIT_FAILURE);
+            panic("Error converting node ID.\n");
         }
         if (!string_to_uint16(information[i + 2], &nodes[i / 3].node_port)) {
-            fprintf(stderr, "Error converting node port.\n");
-            exit(EXIT_FAILURE);
+            panic("Error converting node port.\n");
         }
 
         struct addrinfo peer_hints, *peer_address_list;
@@ -110,7 +110,7 @@ peer *setup_ring_neighbours(char *information[]) {
 
         int info_success = getaddrinfo(information[i + 1], information[i + 2], &peer_hints, &peer_address_list);
         if (info_success != 0) {
-            fprintf(stderr, "getaddrinfo(): %s", gai_strerror(info_success));
+            warn("%s\n", gai_strerror(info_success));
             return NULL;
         }
 
@@ -123,7 +123,7 @@ peer *setup_ring_neighbours(char *information[]) {
 crud_packet *get_blank_crud_packet() {
     crud_packet *blank = malloc(sizeof(crud_packet));
     if (blank == NULL) {
-        fprintf(stderr, "get_blank_crud_packet() -> malloc(): %s.\n", strerror(errno));
+        warn("%s\n", strerror(errno));
         return NULL;
     }
 
@@ -140,7 +140,7 @@ crud_packet *get_blank_crud_packet() {
 crud_packet *initialize_crud_packet_with_values(crud_action a, bytebuffer *key, bytebuffer *value) {
     crud_packet *pkg = calloc(1, sizeof(crud_packet));
     if (pkg == NULL) {
-        fprintf(stderr, "get_blank_crud_packet() -> malloc(): %s.\n", strerror(errno));
+        warn("%s\n", strerror(errno));
         return NULL;
     }
 
@@ -171,16 +171,14 @@ void receive_crud_packet(int socket_fd, crud_packet *pkg, parse_mode m) {
 
     crud_action ack_masked = pkg->action & 0x07;
     if (ack_masked != GET && ack_masked != SET && ack_masked != DEL) {
-        fprintf(stderr, "receive_crud_packet(): Illegal request parameter %#x.\n", pkg->action);
         free_crud_packet(pkg);
-        exit(EXIT_FAILURE);
+        panic("Illegal request parameter %#x.\n", pkg->action);
     }
 
     uint8_t *header = read_n_bytes_from_file(socket_fd, CRUD_HEADER_SIZE);
     if (header == NULL) {
-        fprintf(stderr, "receive_crud_packet(): Couldn't get packet header.\n");
         free_crud_packet(pkg);
-        exit(EXIT_FAILURE);
+        panic("Couldn't get packet header.\n");
     }
 
     uint16_t nw_key_length = 0;
@@ -212,7 +210,7 @@ int send_crud_packet(int socket_fd, crud_packet *pkg) {
         write_n_bytes_to_file(socket_fd, (uint8_t *)&nw_value_length, sizeof(uint32_t)) < 0 ||
         write_n_bytes_to_file(socket_fd, pkg->key->contents, pkg->key->length) < 0 ||
         write_n_bytes_to_file(socket_fd, pkg->value->contents, pkg->value->length) < 0) {
-        fprintf(stderr, "send_crud_packet(): Failed to send packet.\n");
+        warn("Failed to send packet.\n");
         return -1;
     }
 
@@ -231,7 +229,7 @@ uint8_t *read_n_bytes_from_file(int fd, uint32_t amount) {
     }
 
     if (received_bytes == -1) {
-        fprintf(stderr, "read_n_bytes_from_file() -> read(): %s\n", strerror(errno));
+        warn("%s\n", strerror(errno));
         free(bytes);
         return NULL;
     }
@@ -244,7 +242,7 @@ int write_n_bytes_to_file(int fd, uint8_t *bytes, uint32_t amount) {
     while (amount - total_bytes_sent > 0) {
         ssize_t bytes_sent = send(fd, bytes + total_bytes_sent, amount - total_bytes_sent, 0);
         if (bytes_sent < 0) {
-            fprintf(stderr, "write_n_bytes_to_file() -> send(): %s.\n", strerror(errno));
+            warn("%s\n", strerror(errno));
             return -1;
         }
         total_bytes_sent += bytes_sent;
@@ -264,15 +262,28 @@ int establish_tcp_connection_from_ip4(uint32_t ip4, uint16_t port) {
     };
     memset(&address.sin_zero, 0, sizeof(address.sin_zero));
 
-    if ((socket_fd = socket(AF_INET, SOCK_STREAM, PF_INET)) == -1) {
-        fprintf(stderr, "socket(): %s\n", strerror(errno));
+    char ip4_repr[INET_ADDRSTRLEN];
+    inet_ntop(AF_INET, &(address.sin_addr), ip4_repr, INET_ADDRSTRLEN);
+
+    if ((socket_fd = socket(PF_INET, SOCK_STREAM, 0)) == -1) {
+        warn("%s\n", strerror(errno));
         return -1;
     }
 
-    if (connect(socket_fd, (struct sockaddr *)&address, sizeof(address)) == -1) {
-        close(socket_fd);
-        fprintf(stderr, "connect(): %s\n", strerror(errno));
-        return -1;
+    for (size_t i = 0; i < CONNECTION_RETRIES; i++) {
+        if (connect(socket_fd, (struct sockaddr *)&address, sizeof(address)) != -1) break;
+        if (i == CONNECTION_RETRIES - 1) {
+            close(socket_fd);
+            warn("Couldn't establish a connection with %s:%d.\n", ip4_repr, port);
+            return -1;
+        }
+
+        warn("%s. Couldn't establish a connection with %s:%d on try %ld, retrying now.\n", strerror(errno), ip4_repr, port, i + 1);
+        struct timespec ts = {
+            .tv_sec = CONNECTION_TIMEOUT / 1000,
+            .tv_nsec = (CONNECTION_TIMEOUT % 1000) * 1000000,
+        };
+        nanosleep(&ts, &ts);
     }
 
     return socket_fd;
@@ -290,20 +301,20 @@ int establish_tcp_connection(char *host, char *port) {
 
     int info_success = getaddrinfo(host, port, &hints, &address_list);
     if (info_success != 0) {
-        fprintf(stderr, "getaddrinfo(): %s", gai_strerror(info_success));
+        warn("%s\n", gai_strerror(info_success));
         return -1;
     }
 
     int socket_fd = -1;
     for (struct addrinfo *entry = address_list; entry != NULL; entry = entry->ai_next) {
         if ((socket_fd = socket(entry->ai_family, entry->ai_socktype, entry->ai_protocol)) == -1) {
-            fprintf(stderr, "socket(): %s\n", strerror(errno));
+            warn("%s\n", strerror(errno));
             continue;
         }
 
         if (connect(socket_fd, entry->ai_addr, entry->ai_addrlen) == -1) {
             close(socket_fd);
-            fprintf(stderr, "connect(): %s\n", strerror(errno));
+            warn("%s\n", strerror(errno));
             continue;
         }
 
@@ -312,7 +323,7 @@ int establish_tcp_connection(char *host, char *port) {
     freeaddrinfo(address_list);
 
     if (socket_fd < 0) {
-        fprintf(stderr, "establish_tcp_connection() in %s:%d - Couldn't establish connection with %s on port %s.\n", __FILE__, __LINE__, host, port);
+        warn("Couldn't establish a connection with %s:%s.\n", host, port);
     }
 
     return socket_fd;
@@ -328,27 +339,26 @@ int setup_tcp_listener(char *port) {
 
     int info_success = getaddrinfo(NULL, port, &hints, &address_list);
     if (info_success != 0) {
-        fprintf(stderr, "getaddrinfo(): %s\n", gai_strerror(info_success));
-        exit(EXIT_FAILURE);
+        panic("%s\n", gai_strerror(info_success));
     }
 
     int socket_fd = -1;
 
     for (struct addrinfo *entry = address_list; entry != NULL; entry = entry->ai_next) {
         if ((socket_fd = socket(entry->ai_family, entry->ai_socktype, entry->ai_protocol)) == -1) {
-            fprintf(stderr, "socket(): %s\n", strerror(errno));
+            warn("%s\n", strerror(errno));
             continue;
         }
 
         if (setsockopt(socket_fd, SOL_SOCKET, SO_REUSEADDR, (int[]){1}, sizeof(int)) == -1) {
             close(socket_fd);
-            fprintf(stderr, "setsockopt(): %s\n", strerror(errno));
+            warn("%s\n", strerror(errno));
             continue;
         }
 
         if (bind(socket_fd, entry->ai_addr, entry->ai_addrlen) == -1) {
             close(socket_fd);
-            fprintf(stderr, "bind(): %s\n", strerror(errno));
+            warn("%s\n", strerror(errno));
             continue;
         }
 
@@ -357,9 +367,11 @@ int setup_tcp_listener(char *port) {
 
     if (listen(socket_fd, 1) == -1) {
         close(socket_fd);
-        fprintf(stderr, "listen(): %s\n", strerror(errno));
+        warn("%s\n", strerror(errno));
         return -1;
     }
+
+    debug("Now listening on port %s!\n", port);
 
     freeaddrinfo(address_list);
     return socket_fd;
@@ -396,10 +408,9 @@ generic_packet *read_unknown_packet(int fd) {
             break;
         }
         default:
-            fprintf(stderr, "read_unknown_packet(): Received unknown packet type. Check for errors in your packet sending code!\n");
             free(wrapper);
             free(control);
-            return NULL;
+            panic("Received unknown packet type %d. Check for errors in your packet sending code!\n", proto_type);
     }
 
     free(control);

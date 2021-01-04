@@ -13,6 +13,7 @@
 #include "datastore.h"
 #include "VLA.h"
 #include "peer.h"
+#include "debug.h"
 
 // wird von uthash gebraucht, um Hash Table zu erstellen
 client_info *internal_hash_head = NULL;
@@ -31,11 +32,16 @@ int main(int argc, char *argv[]) {
         exit(EXIT_FAILURE);
     }
 
+    int id_length = strlen(argv[1]);
+    dbg_identifier = malloc(5 + id_length + 1);
+    strncpy(dbg_identifier, "Peer ", 5);
+    strncpy(dbg_identifier + 5, argv[1], id_length);
+    dbg_identifier[5 + id_length] = '\0';
+
     peer *nodes = setup_ring_neighbours(argv);
     int listener_fd = setup_tcp_listener(argv[3]);
     if (listener_fd == -1) {
-        fprintf(stderr, "Konnte keine Verbindungssocket erstellen.\n");
-        exit(EXIT_FAILURE);
+        panic("Konnte keine Verbindungssocket erstellen.\n");
     }
 
     struct sigaction sa;
@@ -59,8 +65,7 @@ int main(int argc, char *argv[]) {
         int poll_count = poll((struct pollfd *)pfds_VLA->items, pfds_VLA->length, -1);
 
         if (poll_count == -1) {
-            fprintf(stderr, "poll failed %s\n", strerror(errno));
-            exit(EXIT_FAILURE);
+            panic("%s\n", strerror(errno));
         }
 
         for (int i = 0; i < pfds_VLA->length; i++) {
@@ -71,7 +76,7 @@ int main(int argc, char *argv[]) {
                     // socket is main socket
                     int connect_fd = accept(listener_fd, (struct sockaddr *)&their_address, &addr_size);
                     if (connect_fd == -1) {
-                        if (errno != EINTR) fprintf(stderr, "accept(): %s\n", strerror(errno));
+                        if (errno != EINTR) warn("%s\n", strerror(errno));
                         continue;
                     }
                     VLA_data new_connection = {
@@ -83,7 +88,7 @@ int main(int argc, char *argv[]) {
                     // socket is not main socket
                     generic_packet *request = read_unknown_packet(pfds_item.fd);
                     if (request == NULL) {
-                        fprintf(stderr, "Error while parsing network request.\n");
+                        warn("Error while parsing network request.\n");
                         close(pfds_item.fd);
                         continue;
                     }
@@ -112,7 +117,7 @@ int main(int argc, char *argv[]) {
                         } else if (hash_value < nodes[2].node_id) {  // Nachricht ist für den Bereich zuständig, einfach Request an ihn weiterleiten
                             int peer_fd = establish_tcp_connection_from_ip4(nodes[2].node_ip, nodes[2].node_port);
                             if (peer_fd == -1) {
-                                fprintf(stderr, "Konnte keine Socket erstellen.\n");
+                                warn("Konnte keine Socket erstellen.\n");
                                 exit(EXIT_FAILURE);
                             }
 
@@ -135,8 +140,7 @@ int main(int argc, char *argv[]) {
 
                             int peer_fd = establish_tcp_connection_from_ip4(nodes[2].node_ip, nodes[2].node_port);
                             if (peer_fd == -1) {
-                                fprintf(stderr, "Konnte keine Socket erstellen.\n");
-                                exit(EXIT_FAILURE);
+                                panic("Konnte keine Socket erstellen.\n");
                             }
 
                             send_chord_packet(peer_fd, pkg);
@@ -150,7 +154,7 @@ int main(int argc, char *argv[]) {
                             client_info *client = NULL;
                             HASH_FIND_INT(internal_hash_head, &pkg->hash_id, client);
                             if (client == NULL) {
-                                fprintf(stderr, "Kein Client hat Key %d angefragt. Irgendetwas ist im Ring oder mit dem jeweiligen Client schiefgelaufen.\n", pkg->hash_id);
+                                warn("Kein Client hat Key %d angefragt. Irgendetwas ist im Ring oder mit dem jeweiligen Client schiefgelaufen.\n", pkg->hash_id);
                                 continue;
                                 // TODO: bessere Fehlerbehebung, fds schließen etc
                             }
@@ -173,8 +177,7 @@ int main(int argc, char *argv[]) {
                             } else {
                                 int peer_fd = establish_tcp_connection_from_ip4(nodes[2].node_ip, nodes[2].node_port);
                                 if (peer_fd == -1) {
-                                    fprintf(stderr, "Konnte keine Socket erstellen.\n");
-                                    exit(EXIT_FAILURE);
+                                    panic("Konnte keine Socket erstellen.\n");
                                 }
 
                                 send_chord_packet(peer_fd, pkg);

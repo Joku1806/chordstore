@@ -7,6 +7,7 @@
 #include <string.h>
 #include "protocol.h"
 #include "VLA.h"
+#include "debug.h"
 
 // Liest Bytes vom File Descriptor fd, bis die Verbindung beendet wird oder es nichts mehr zu lesen gibt.
 bytebuffer *read_from_file(int fd) {
@@ -30,14 +31,14 @@ bytebuffer *read_from_file(int fd) {
     }
 
     if (received_bytes == -1) {
-        fprintf(stderr, "read_from_file() -> read(): %s\n", strerror(errno));
+        warn("%s\n", strerror(errno));
         free(bytes);
         VLA_cleanup(stream, NULL);
         return NULL;
     }
 
     if (stream->length == 0) {
-        fprintf(stderr, "read_from_file(): There was nothing to read.\n");
+        warn("There was nothing to read.\n");
         free(bytes);
         VLA_cleanup(stream, NULL);
         return NULL;
@@ -55,6 +56,7 @@ int main(int argc, char **argv) {
         exit(EXIT_FAILURE);
     }
 
+    dbg_identifier = "Client";
     char *host = argv[1];
     char *port = argv[2];
     char *action = argv[3];
@@ -87,8 +89,7 @@ int main(int argc, char **argv) {
         value_buffer = initialize_bytebuffer_with_values(NULL, 0);
         value_buffer->contents_are_freeable = 0;
     } else {
-        fprintf(stderr, "main(): Illegal action %s.\n", action);
-        exit(EXIT_FAILURE);
+        panic("Illegal action %s.\n", action);
     }
 
     // Sende Request zum Server und informiere ihn nach dem Senden mit
@@ -97,8 +98,7 @@ int main(int argc, char **argv) {
     // obwohl nichts mehr gesendet wird.
     crud_packet *packet = initialize_crud_packet_with_values(a, key_buffer, value_buffer);
     if (send_crud_packet(connect_fd, packet) < 0) {
-        fprintf(stderr, "main(): Failed to send packet to server.\n");
-        exit(EXIT_FAILURE);
+        panic("Failed to send packet to server.\n");
     }
     free_crud_packet(packet);
     shutdown(connect_fd, SHUT_WR);
@@ -108,8 +108,7 @@ int main(int argc, char **argv) {
     crud_packet *response = get_blank_crud_packet();
     receive_crud_packet(connect_fd, response, READ_CONTROL);
     if (!(response->action & ACK)) {
-        fprintf(stderr, "main(): Request wasn't acknowledged by server, something went wrong on the server side.\n");
-        exit(EXIT_FAILURE);
+        panic("Request wasn't acknowledged by server, something went wrong on the server side.\n");
     }
 
     // Gebe die Antwort nur aus, wenn GET gesetzt ist.

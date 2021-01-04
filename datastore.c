@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include "datastore.h"
+#include "debug.h"
 
 // wird von uthash gebraucht, um Hash Table zu erstellen
 crud_packet *ds_hash_head = NULL;
@@ -31,7 +32,7 @@ crud_packet *execute_ds_action(crud_packet *pkg) {
             if (ds_delete(pkg->key) >= 0) response->action |= ACK;
             return response;
         default:
-            fprintf(stderr, "execute_ds_action(): Illegal request parameter %#x. WARNING: Something is getting through struct un/packing functions!\n", pkg->action);
+            warn("execute_ds_action(): Illegal request parameter %#x. Something is getting through struct un/packing functions!\n", pkg->action);
             return NULL;
     }
 }

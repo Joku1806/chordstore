@@ -3,6 +3,7 @@
 #include <string.h>
 #include <errno.h>
 #include "bytebuffer.h"
+#include "debug.h"
 
 bytebuffer* initialize_bytebuffer_with_values(uint8_t* contents, uint32_t length) {
     bytebuffer* buffer = malloc(sizeof(bytebuffer));
@@ -28,8 +29,7 @@ void bytebuffer_shallow_copy(bytebuffer* to, bytebuffer* from) {
 // zeigt, muss genau einer das freeable-Bit auf 1 gesetzt haben, alles andere ist ein Fehler, weil es sonst
 void bytebuffer_transfer_ownership(bytebuffer* buf1, bytebuffer* buf2) {
     if (buf1->contents != buf2->contents) {
-        fprintf(stderr, "bytebuffer_transfer_ownership(): Content addresses are not the same.\n");
-        exit(EXIT_FAILURE);
+        panic("Content addresses are not the same.\n");
     }
 
     if (buf1->contents_are_freeable == buf2->contents_are_freeable) return;

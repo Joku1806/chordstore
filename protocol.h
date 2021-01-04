@@ -9,6 +9,8 @@
 #define CRUD_HEADER_SIZE 6
 #define CHORD_PACKET_SIZE 10
 #define MAX_DATA_ACCEPT 512
+#define CONNECTION_RETRIES 5
+#define CONNECTION_TIMEOUT 1000
 
 typedef enum {
     DEL = 1,
