@@ -33,6 +33,7 @@ void VLA_delete_by_index(VLA* v, size_t idx) {
         return;
     }
 
+    // Doesn't preserve item order, so be careful when using
     v->items[idx] = v->items[v->length - 1];
     v->length--;
 }

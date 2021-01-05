@@ -53,6 +53,7 @@ void ds_set(crud_packet *pkg) {
     crud_packet *entry = ds_query(pkg->key);
 
     if (!entry) {
+        debug("No entry found for key %s, creating new one.\n", (char *)pkg->key->contents);
         crud_packet *new = get_blank_crud_packet();
         bytebuffer_shallow_copy(new->key, pkg->key);
         bytebuffer_transfer_ownership(new->key, pkg->key);
@@ -60,6 +61,7 @@ void ds_set(crud_packet *pkg) {
         bytebuffer_transfer_ownership(new->value, pkg->value);
         HASH_ADD_KEYPTR(hh, ds_hash_head, new->key->contents, new->key->length, new);
     } else {
+        debug("Found entry for key %s, now replacing old value %s with new value %s.\n", (char *)pkg->key->contents, (char *)entry->value->contents, (char *)pkg->value->contents);
         if (entry->value->contents_are_freeable) free(entry->value->contents);
         bytebuffer_shallow_copy(entry->value, pkg->value);
         bytebuffer_transfer_ownership(entry->value, pkg->value);
@@ -74,6 +76,7 @@ int ds_delete(bytebuffer *key) {
     if (!entry) {
         return -1;
     } else {
+        debug("Now deleting entry with key %s and value %s.\n", (char *)key->contents, (char *)entry->value->contents);
         HASH_DEL(ds_hash_head, entry);
         free_crud_packet(entry);
     }
@@ -84,6 +87,7 @@ int ds_delete(bytebuffer *key) {
 // Löscht alle Pointer zu structs aus der Hash Table, die Hash Table selbst,
 // sowie alle structs, die ihm Hash Table gespeichert waren.
 void ds_destruct() {
+    debug("Now deleting complete data store!\n");
     crud_packet *current, *tmp;
 
     HASH_ITER(hh, ds_hash_head, current, tmp) {
