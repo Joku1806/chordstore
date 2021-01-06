@@ -96,41 +96,42 @@ int main(int argc, char *argv[]) {
                     shutdown(pfds_item.fd, SHUT_RD);
 
                     if (request->type == PROTO_CRUD) {
-                        crud_packet *pkg = (crud_packet *)request->contents;
+                        crud_packet *client_request = (crud_packet *)request->contents;
                         uint16_t hash_value = 0;
-                        memcpy(&hash_value, pkg->key->contents, sizeof(uint16_t) > pkg->key->length ? pkg->key->length : sizeof(uint16_t));
+                        memcpy(&hash_value, client_request->key->contents, sizeof(uint16_t) > client_request->key->length ? client_request->key->length : sizeof(uint16_t));
 
                         client_info *new = malloc(sizeof(client_info));
                         new->key = hash_value;
                         new->fd = pfds_item.fd;
+                        new->request = client_request;
+                        debug("Storing client information with Key %#x, fd %d and request %p in internal Hash Table.\n", new->key, new->fd, new->request);
                         HASH_ADD_INT(internal_hash_head, key, new);
 
-                        if (hash_value < nodes[0].node_id) {
+                        if (peer_stores_hashvalue(&nodes[0], hash_value)) {
+                            debug("I have the value, now sending back answer to Client.\n");
                             // Führe die Request vom Client aus und sende ihm zurück, ob das auch geklappt hat.
-                            crud_packet *response = execute_ds_action(pkg);
+                            crud_packet *response = execute_ds_action(client_request);
 
                             send_crud_packet(pfds_item.fd, response);
                             shutdown(pfds_item.fd, SHUT_WR);
                             close(pfds_item.fd);
 
-                            free_crud_packet(pkg);
+                            free_crud_packet(client_request);
                             free_crud_packet(response);
-                        } else if (hash_value < nodes[2].node_id) {  // Nachricht ist für den Bereich zuständig, einfach Request an ihn weiterleiten
+                            VLA_delete_by_index(pfds_VLA, i);
+                        } else if (peer_stores_hashvalue(&nodes[2], hash_value)) {  // Nachfolger ist für den Bereich zuständig, einfach Request an ihn weiterleiten
+                            debug("Successor stores the value, now sending back answer to Client over one redirection.\n");
                             int peer_fd = establish_tcp_connection_from_ip4(nodes[2].node_ip, nodes[2].node_port);
-                            if (peer_fd == -1) {
-                                warn("Konnte keine Socket erstellen.\n");
-                                exit(EXIT_FAILURE);
-                            }
-
-                            send_crud_packet(peer_fd, pkg);
-
+                            send_crud_packet(peer_fd, client_request);
                             crud_packet *response = get_blank_crud_packet();
                             receive_crud_packet(peer_fd, response, READ_CONTROL);
                             send_crud_packet(pfds_item.fd, response);
                             close(pfds_item.fd);
-                            free_crud_packet(pkg);
+                            free_crud_packet(client_request);
                             free_crud_packet(response);
+                            VLA_delete_by_index(pfds_VLA, i);
                         } else {  // es ist noch nicht bekannt, wer für den Bereich verantwortlich ist -> lookup machen
+                            debug("Don't know who stores the value, starting lookup!\n");
                             chord_packet *pkg = get_blank_chord_packet();
 
                             pkg->action = LOOKUP;
@@ -140,52 +141,57 @@ int main(int argc, char *argv[]) {
                             pkg->node_port = nodes[0].node_port;
 
                             int peer_fd = establish_tcp_connection_from_ip4(nodes[2].node_ip, nodes[2].node_port);
-                            if (peer_fd == -1) {
-                                panic("Konnte keine Socket erstellen.\n");
-                            }
-
                             send_chord_packet(peer_fd, pkg);
                             close(peer_fd);
                             free(pkg);
+                            VLA_delete_by_index(pfds_VLA, i);
                         }
                     } else if (request->type == PROTO_CHORD) {
-                        chord_packet *pkg = (chord_packet *)request->contents;
+                        chord_packet *ring_message = (chord_packet *)request->contents;
 
-                        if (pkg->action == REPLY) {
+                        if (ring_message->action == REPLY) {
+                            debug("Got a reply, now I know where the value is stored. Trying to send answer to Client over one redirection.\n");
                             client_info *client = NULL;
-                            HASH_FIND_INT(internal_hash_head, &pkg->hash_id, client);
+                            HASH_FIND_INT(internal_hash_head, &ring_message->hash_id, client);
                             if (client == NULL) {
-                                warn("Kein Client hat Key %d angefragt. Irgendetwas ist im Ring oder mit dem jeweiligen Client schiefgelaufen.\n", pkg->hash_id);
+                                warn("No client has sent a request with Key %#x. Something went wrong inside the ring or the client closed the connection.\n", ring_message->hash_id);
                                 continue;
                                 // TODO: bessere Fehlerbehebung, fds schließen etc
                             }
-                            int peer_fd = establish_tcp_connection_from_ip4(pkg->node_ip, pkg->node_port);
+
+                            int peer_fd = establish_tcp_connection_from_ip4(ring_message->node_ip, ring_message->node_port);
                             send_crud_packet(peer_fd, client->request);
                             crud_packet *response = get_blank_crud_packet();
                             receive_crud_packet(peer_fd, response, READ_CONTROL);
+                            VLA_delete_by_index(pfds_VLA, i);
                             send_crud_packet(client->fd, response);
-                            // TODO: Beenden von mehreren Verbindungen, Löschen von Client/Key mapping, vielleicht eigene Funktion?
-                        } else if (pkg->action == LOOKUP) {
-                            if (pkg->hash_id < nodes[2].node_id) {
+                            HASH_DEL(internal_hash_head, client);
+                            free_crud_packet(client->request);
+                            free(client);
+                        } else if (ring_message->action == LOOKUP) {
+                            if (peer_stores_hashvalue(&nodes[2], ring_message->hash_id)) {
+                                debug("Got a lookup request, my successor has the value. Sending back answer to the origin of the lookup!\n");
                                 chord_packet *reply = get_blank_chord_packet();
 
                                 reply->action = REPLY;
-                                reply->hash_id = pkg->hash_id;
+                                reply->hash_id = ring_message->hash_id;
                                 reply->node_id = nodes[2].node_id;
                                 reply->node_ip = nodes[2].node_ip;
                                 reply->node_port = nodes[2].node_port;
 
-                            } else {
-                                int peer_fd = establish_tcp_connection_from_ip4(nodes[2].node_ip, nodes[2].node_port);
-                                if (peer_fd == -1) {
-                                    panic("Konnte keine Socket erstellen.\n");
-                                }
-
-                                send_chord_packet(peer_fd, pkg);
+                                int peer_fd = establish_tcp_connection_from_ip4(ring_message->node_ip, ring_message->node_port);
+                                send_chord_packet(peer_fd, reply);
                                 close(peer_fd);
-                                free(pkg);
+                                VLA_delete_by_index(pfds_VLA, i);
+                            } else {
+                                debug("Got a lookup request, but I also don't know where the value is stored. Forwarding lookup to my successor.\n");
+                                int peer_fd = establish_tcp_connection_from_ip4(nodes[2].node_ip, nodes[2].node_port);
+                                send_chord_packet(peer_fd, ring_message);
+                                close(peer_fd);
                             }
                         }
+
+                        free(ring_message);
                     }
                 }
             }

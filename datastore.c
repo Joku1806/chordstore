@@ -76,7 +76,7 @@ int ds_delete(bytebuffer *key) {
     if (!entry) {
         return -1;
     } else {
-        debug("Now deleting entry with key %s and value %s.\n", (char *)key->contents, (char *)entry->value->contents);
+        debug("Deleting entry with key %s and value %s.\n", (char *)key->contents, (char *)entry->value->contents);
         HASH_DEL(ds_hash_head, entry);
         free_crud_packet(entry);
     }
@@ -87,7 +87,7 @@ int ds_delete(bytebuffer *key) {
 // Löscht alle Pointer zu structs aus der Hash Table, die Hash Table selbst,
 // sowie alle structs, die ihm Hash Table gespeichert waren.
 void ds_destruct() {
-    debug("Now deleting complete data store!\n");
+    debug("Deleting complete data store!\n");
     crud_packet *current, *tmp;
 
     HASH_ITER(hh, ds_hash_head, current, tmp) {

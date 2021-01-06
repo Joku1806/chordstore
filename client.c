@@ -11,7 +11,6 @@
 
 // Liest Bytes vom File Descriptor fd, bis die Verbindung beendet wird oder es nichts mehr zu lesen gibt.
 bytebuffer *read_from_file(int fd) {
-    debug("Now trying to read bytes from file descriptor %d.\n", fd);
     VLA *stream = VLA_initialize_with_capacity(MAX_DATA_ACCEPT);
     uint8_t *bytes = calloc(1, MAX_DATA_ACCEPT);
     int received_bytes = 0;
@@ -39,24 +38,22 @@ bytebuffer *read_from_file(int fd) {
     }
 
     if (stream->length == 0) {
-        warn("There was nothing to read.\n");
+        warn("Couldn't read anything from file descriptor %d.\n", fd);
         free(bytes);
         VLA_cleanup(stream, NULL);
         return NULL;
     }
 
-    debug("Read %ld bytes from file descriptor %d.\n", stream->length, fd);
-
     free(bytes);
     bytebuffer *buffer = VLA_into_bytebuffer(stream);
-    debug("Read Contents:\n%s\n", (char *)buffer->contents);
+    debug("Read %ld bytes from file descriptor %d:\n%s\n", stream->length, fd, (char *)buffer->contents);
     VLA_cleanup(stream, NULL);
     return buffer;
 }
 
 int main(int argc, char **argv) {
     if (argc != 5) {
-        printf("Benutzung: %s <Host> <Port> <Aktion> <Key>\n", argv[0]);
+        printf("Usage: %s <Host> <Port> <Action> <Key>\n", argv[0]);
         exit(EXIT_FAILURE);
     }
 

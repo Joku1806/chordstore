@@ -28,7 +28,6 @@ void parse_chord_control(int socket_fd, chord_packet *pkg, uint8_t *control) {
 }
 
 void receive_chord_packet(int socket_fd, chord_packet *pkg, parse_mode m) {
-    debug("Now waiting for chord packet on socket %d with parse_mode %#x\n", socket_fd, m);
     if (m == READ_CONTROL) {
         uint8_t *control = read_n_bytes_from_file(socket_fd, 1);
         parse_chord_control(socket_fd, pkg, control);
@@ -73,7 +72,7 @@ int send_chord_packet(int socket_fd, chord_packet *pkg) {
         .s_addr = pkg->node_ip,
     };
     char *ip4_repr = ip4_to_string(&ip_wrapper);
-    debug("Now sending chord packet with action = %#x, Hash ID = %#x, Node IP = %s and Node Port = %d over socket %d.\n", pkg->action, pkg->hash_id, ip4_repr, pkg->node_port, socket_fd);
+    debug("Sending chord packet with action = %#x, Hash ID = %#x, Node IP = %s and Node Port = %d over socket %d.\n", pkg->action, pkg->hash_id, ip4_repr, pkg->node_port, socket_fd);
     free(ip4_repr);
 
     if (write_n_bytes_to_file(socket_fd, &header, sizeof(uint8_t)) < 0 ||
@@ -103,6 +102,11 @@ int string_to_uint16(char *src, uint16_t *dest) {
     return 1;
 }
 
+int peer_stores_hashvalue(peer *peer, uint16_t hash_value) {
+    if (peer->area_start > peer->area_stop) return hash_value >= peer->area_start || hash_value <= peer->area_stop;
+    return hash_value >= peer->area_start && hash_value <= peer->area_stop;
+}
+
 peer *setup_ring_neighbours(char *information[]) {
     // nodes[0]: Eigene Node
     // nodes[1]: Vorgängernode
@@ -129,8 +133,18 @@ peer *setup_ring_neighbours(char *information[]) {
         }
 
         nodes[i / 3].node_ip = ((struct sockaddr_in *)peer_address_list->ai_addr)->sin_addr.s_addr;
-        debug("initialized nodes[%d] with ID %s, Host %s and Port %s.\n", i / 3, information[i], information[i + 1], information[i + 2]);
+        debug("initialized nodes[%d] with ID %s and address %s:%s.\n", i / 3, information[i], information[i + 1], information[i + 2]);
     }
+
+    nodes[0].area_start = nodes[1].node_id + 1;
+    nodes[0].area_stop = nodes[0].node_id;
+
+    // Es wird nirgendwo der Bereich vom Vorgänger geprüft, einfach auf 0 setzen
+    nodes[1].area_start = 0;
+    nodes[1].area_stop = nodes[1].node_id;
+
+    nodes[2].area_start = nodes[0].node_id + 1;
+    nodes[2].area_stop = nodes[2].node_id;
 
     return nodes;
 }
@@ -178,7 +192,6 @@ void parse_crud_control(int socket_fd, crud_packet *pkg, uint8_t *control) {
 }
 
 void receive_crud_packet(int socket_fd, crud_packet *pkg, parse_mode m) {
-    debug("Now waiting for crud packet on socket %d with parse_mode %#x\n", socket_fd, m);
     if (m == READ_CONTROL) {
         uint8_t *control = read_n_bytes_from_file(socket_fd, 1);
         parse_crud_control(socket_fd, pkg, control);
@@ -214,6 +227,8 @@ void receive_crud_packet(int socket_fd, crud_packet *pkg, parse_mode m) {
     pkg->key->contents_are_freeable = value == NULL ? 0 : 1;
     pkg->value->contents = value;
     pkg->value->contents_are_freeable = value == NULL ? 0 : 1;
+
+    debug("Got CRUD packet with action %#x\nKey: %.*s\nValue: %.*s\n", pkg->action, pkg->key->length, (char *)pkg->key->contents, pkg->value->length, (char *)pkg->value->contents);
 }
 
 int send_crud_packet(int socket_fd, crud_packet *pkg) {
@@ -241,7 +256,6 @@ uint8_t *read_n_bytes_from_file(int fd, uint32_t amount) {
     uint32_t total_bytes = 0;
 
     while ((received_bytes = read(fd, bytes + total_bytes, amount - total_bytes)) > 0) {
-        debug("Read %d bytes from file descriptor %d.\n", received_bytes, fd);
         total_bytes += received_bytes;
     }
 
@@ -258,7 +272,6 @@ int write_n_bytes_to_file(int fd, uint8_t *bytes, uint32_t amount) {
     uint32_t total_bytes_sent = 0;
     while (amount - total_bytes_sent > 0) {
         ssize_t bytes_sent = send(fd, bytes + total_bytes_sent, amount - total_bytes_sent, 0);
-        debug("Wrote %ld bytes to file descriptor %d.\n", bytes_sent, fd);
         if (bytes_sent < 0) {
             warn("%s\n", strerror(errno));
             return -1;
@@ -297,9 +310,7 @@ int establish_tcp_connection_from_ip4(uint32_t ip4, uint16_t port) {
         if (connect(socket_fd, (struct sockaddr *)&address, sizeof(address)) == 0) break;
         if (i == CONNECTION_RETRIES - 1) {
             close(socket_fd);
-            warn("Couldn't establish a connection with %s:%d.\n", ip4_repr, port);
-            free(ip4_repr);
-            return -1;
+            panic("Couldn't establish a connection with %s:%d.\n", ip4_repr, port);
         }
 
         warn("%s. Couldn't establish a connection with %s:%d on try %ld, retrying now.\n", strerror(errno), ip4_repr, port, i + 1);
@@ -410,15 +421,14 @@ generic_packet *get_blank_unknown_packet() {
 }
 
 generic_packet *read_unknown_packet(int fd) {
-    debug("Now trying to identify unknown packet.\n");
     generic_packet *wrapper = get_blank_unknown_packet();
 
     uint8_t *control = read_n_bytes_from_file(fd, 1);
-    protocol_t proto_type = (control[0] & 0x80) >> 8;
+    protocol_t proto_type = (control[0] & 0x80) >> 7;
 
     switch (proto_type) {
         case PROTO_CRUD: {
-            debug("identified unknown packet as CRUD packet, now continuing to read.\n");
+            debug("Identified unknown packet as CRUD packet, now continuing to read.\n");
             crud_packet *pkg = get_blank_crud_packet();
             parse_crud_control(fd, pkg, control);
             receive_crud_packet(fd, pkg, SKIP_CONTROL);
@@ -427,7 +437,7 @@ generic_packet *read_unknown_packet(int fd) {
             break;
         }
         case PROTO_CHORD: {
-            debug("identified unknown packet as CHORD packet, now continuing to read.\n");
+            debug("Identified unknown packet as CHORD packet, now continuing to read.\n");
             chord_packet *pkg = get_blank_chord_packet();
             parse_chord_control(fd, pkg, control);
             receive_chord_packet(fd, pkg, SKIP_CONTROL);

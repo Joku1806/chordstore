@@ -58,6 +58,8 @@ typedef struct {
 } generic_packet;
 
 typedef struct {
+    uint16_t area_start;
+    uint16_t area_stop;
     uint32_t node_ip;
     uint16_t node_port;
     uint16_t node_id;
@@ -74,6 +76,7 @@ chord_packet* get_blank_chord_packet();
 void parse_chord_control(int socket_fd, chord_packet* pkg, uint8_t* control);
 void receive_chord_packet(int socket_fd, chord_packet* pkg, parse_mode m);
 int send_chord_packet(int socket_fd, chord_packet* pkg);
+int peer_stores_hashvalue(peer* peer, uint16_t hash_value);
 peer* setup_ring_neighbours(char* information[]);
 
 uint8_t* read_n_bytes_from_file(int fd, uint32_t amount);

@@ -21,7 +21,7 @@ static inline void debug(char* format, ...) {
     char internal_format[FORMAT_MAXLEN];
     va_list args;
     va_start(args, format);
-    snprintf(internal_format, FORMAT_MAXLEN, "%s[*]%s %s %s", debug_color, reset_color, dbg_identifier, format);
+    snprintf(internal_format, FORMAT_MAXLEN, "%s[*] %s%s %s", debug_color, dbg_identifier, reset_color, format);
     vfprintf(stderr, internal_format, args);
     va_end(args);
 #endif
@@ -39,7 +39,7 @@ static inline void warn(char* format, ...) {
     char internal_format[FORMAT_MAXLEN];
     va_list args;
     va_start(args, format);
-    snprintf(internal_format, FORMAT_MAXLEN, "%s[WARNING]%s %s %s", warn_color, reset_color, dbg_identifier, format);
+    snprintf(internal_format, FORMAT_MAXLEN, "%s[WARNING] %s%s %s", warn_color, dbg_identifier, reset_color, format);
     vfprintf(stderr, internal_format, args);
     va_end(args);
     free(symbols);
@@ -57,7 +57,7 @@ static inline void panic(char* format, ...) {
     char internal_format[FORMAT_MAXLEN];
     va_list args;
     va_start(args, format);
-    snprintf(internal_format, FORMAT_MAXLEN, "%s[PANIC]%s %s %s", panic_color, reset_color, dbg_identifier, format);
+    snprintf(internal_format, FORMAT_MAXLEN, "%s[PANIC] %s%s %s", panic_color, dbg_identifier, reset_color, format);
     vfprintf(stderr, internal_format, args);
     va_end(args);
     free(symbols);
