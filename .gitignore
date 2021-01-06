@@ -2,6 +2,5 @@ infos/
 .idea/
 cmake-build-*/
 build/
-test_setup.sh
 test_value.txt
 log.txt
