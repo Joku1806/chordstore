@@ -1,12 +1,20 @@
 #include <math.h>
+#include <string.h>
+#include <errno.h>
 #include "VLA.h"
 #include "debug.h"
 
 VLA* VLA_initialize_with_capacity(size_t cap) {
     VLA* v = calloc(1, sizeof(VLA));
+    if (v == NULL) {
+        panic("%s\n", strerror(errno));
+    }
     v->capacity = cap;
     v->length = 0;
     v->items = calloc(v->capacity, sizeof(VLA_data));
+    if (v->items == NULL) {
+        panic("%s\n", strerror(errno));
+    }
 
     return v;
 }
@@ -39,6 +47,9 @@ void VLA_delete_by_index(VLA* v, size_t idx) {
 
 bytebuffer* VLA_into_bytebuffer(VLA* v) {
     uint8_t* bytes = calloc(1, v->length);
+    if (bytes == NULL) {
+        panic("%s\n", strerror(errno));
+    }
 
     for (size_t i = 0; i < v->length; i++) {
         bytes[i] = v->items[i].byte;

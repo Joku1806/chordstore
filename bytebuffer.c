@@ -7,6 +7,9 @@
 
 bytebuffer* initialize_bytebuffer_with_values(uint8_t* contents, uint32_t length) {
     bytebuffer* buffer = malloc(sizeof(bytebuffer));
+    if (buffer == NULL) {
+        panic("%s\n", strerror(errno));
+    }
     buffer->contents = contents;
     buffer->contents_are_freeable = 0;  // wird hier nur gesetzt, damit es eine konsistente Vorgehensweise gibt. Für das richtige Setzen ist immer noch der Caller verantwortlich, da C nicht wissen kann, welche Adressen wirklich befreibar sind.
     buffer->length = length;

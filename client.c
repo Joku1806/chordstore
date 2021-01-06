@@ -13,6 +13,9 @@
 bytebuffer *read_from_file(int fd) {
     VLA *stream = VLA_initialize_with_capacity(MAX_DATA_ACCEPT);
     uint8_t *bytes = calloc(1, MAX_DATA_ACCEPT);
+    if (bytes == NULL) {
+        panic("%s\n", strerror(errno));
+    }
     int received_bytes = 0;
 
     // Es muss hier ein konstant großer Buffer zum initialen Einlesen benutzt werden, weil man vorher nicht wissen kann,

@@ -34,6 +34,9 @@ int main(int argc, char *argv[]) {
 
     int id_length = strlen(argv[1]);
     dbg_identifier = malloc(5 + id_length + 1);
+    if (dbg_identifier == NULL) {
+        panic("%s\n", strerror(errno));
+    }
     strncpy(dbg_identifier, "Peer ", 5);
     strncpy(dbg_identifier + 5, argv[1], id_length);
     dbg_identifier[5 + id_length] = '\0';
@@ -88,11 +91,6 @@ int main(int argc, char *argv[]) {
                 } else {
                     // socket is not main socket
                     generic_packet *request = read_unknown_packet(pfds_item.fd);
-                    if (request == NULL) {
-                        warn("Error while parsing network request.\n");
-                        close(pfds_item.fd);
-                        continue;
-                    }
                     shutdown(pfds_item.fd, SHUT_RD);
 
                     if (request->type == PROTO_CRUD) {
@@ -101,6 +99,9 @@ int main(int argc, char *argv[]) {
                         memcpy(&hash_value, client_request->key->contents, sizeof(uint16_t) > client_request->key->length ? client_request->key->length : sizeof(uint16_t));
 
                         client_info *new = malloc(sizeof(client_info));
+                        if (new == NULL) {
+                            panic("%s\n", strerror(errno));
+                        }
                         new->key = hash_value;
                         new->fd = pfds_item.fd;
                         new->request = client_request;
@@ -108,7 +109,7 @@ int main(int argc, char *argv[]) {
                         HASH_ADD_INT(internal_hash_head, key, new);
 
                         if (peer_stores_hashvalue(&nodes[0], hash_value)) {
-                            debug("I have the value, now sending back answer to Client.\n");
+                            debug("I am responsible for the hash value, now sending back answer to Client.\n");
                             // Führe die Request vom Client aus und sende ihm zurück, ob das auch geklappt hat.
                             crud_packet *response = execute_ds_action(client_request);
 
@@ -120,7 +121,7 @@ int main(int argc, char *argv[]) {
                             free_crud_packet(response);
                             VLA_delete_by_index(pfds_VLA, i);
                         } else if (peer_stores_hashvalue(&nodes[2], hash_value)) {  // Nachfolger ist für den Bereich zuständig, einfach Request an ihn weiterleiten
-                            debug("Successor stores the value, now sending back answer to Client over one redirection.\n");
+                            debug("Successor is responsible for the hash value, now sending back answer to Client over one redirection.\n");
                             int peer_fd = establish_tcp_connection_from_ip4(nodes[2].node_ip, nodes[2].node_port);
                             send_crud_packet(peer_fd, client_request);
                             crud_packet *response = get_blank_crud_packet();
@@ -131,7 +132,7 @@ int main(int argc, char *argv[]) {
                             free_crud_packet(response);
                             VLA_delete_by_index(pfds_VLA, i);
                         } else {  // es ist noch nicht bekannt, wer für den Bereich verantwortlich ist -> lookup machen
-                            debug("Don't know who stores the value, starting lookup!\n");
+                            debug("Don't know who is responsible for the hash value, starting lookup!\n");
                             chord_packet *pkg = get_blank_chord_packet();
 
                             pkg->action = LOOKUP;
@@ -150,7 +151,7 @@ int main(int argc, char *argv[]) {
                         chord_packet *ring_message = (chord_packet *)request->contents;
 
                         if (ring_message->action == REPLY) {
-                            debug("Got a reply, now I know where the value is stored. Trying to send answer to Client over one redirection.\n");
+                            debug("Got a reply, now I know who is responsible for the hash value. Trying to send answer to Client over one redirection.\n");
                             client_info *client = NULL;
                             HASH_FIND_INT(internal_hash_head, &ring_message->hash_id, client);
                             if (client == NULL) {
@@ -170,7 +171,7 @@ int main(int argc, char *argv[]) {
                             free(client);
                         } else if (ring_message->action == LOOKUP) {
                             if (peer_stores_hashvalue(&nodes[2], ring_message->hash_id)) {
-                                debug("Got a lookup request, my successor has the value. Sending back answer to the origin of the lookup!\n");
+                                debug("Got a lookup request, my successor is responsible for the hash value. Sending back answer to the origin of the lookup.\n");
                                 chord_packet *reply = get_blank_chord_packet();
 
                                 reply->action = REPLY;
@@ -184,7 +185,7 @@ int main(int argc, char *argv[]) {
                                 close(peer_fd);
                                 VLA_delete_by_index(pfds_VLA, i);
                             } else {
-                                debug("Got a lookup request, but I also don't know where the value is stored. Forwarding lookup to my successor.\n");
+                                debug("Got a lookup request, but I also don't know who is responsible for the hash value. Forwarding lookup to my successor.\n");
                                 int peer_fd = establish_tcp_connection_from_ip4(nodes[2].node_ip, nodes[2].node_port);
                                 send_chord_packet(peer_fd, ring_message);
                                 close(peer_fd);

@@ -14,8 +14,7 @@
 chord_packet *get_blank_chord_packet() {
     chord_packet *blank = malloc(sizeof(chord_packet));
     if (blank == NULL) {
-        warn("%s\n", strerror(errno));
-        return NULL;
+        panic("%s\n", strerror(errno));
     }
 
     memset(blank, 0, sizeof(chord_packet));
@@ -112,6 +111,9 @@ peer *setup_ring_neighbours(char *information[]) {
     // nodes[1]: Vorgängernode
     // nodes[2]: Nachfolgernode
     peer *nodes = calloc(3, sizeof(peer));
+    if (nodes == NULL) {
+        panic("%s\n", strerror(errno));
+    }
 
     for (int i = 1; i < 10; i += 3) {
         if (!string_to_uint16(information[i], &nodes[i / 3].node_id)) {
@@ -133,7 +135,6 @@ peer *setup_ring_neighbours(char *information[]) {
         }
 
         nodes[i / 3].node_ip = ((struct sockaddr_in *)peer_address_list->ai_addr)->sin_addr.s_addr;
-        debug("initialized nodes[%d] with ID %s and address %s:%s.\n", i / 3, information[i], information[i + 1], information[i + 2]);
     }
 
     nodes[0].area_start = nodes[1].node_id + 1;
@@ -152,8 +153,7 @@ peer *setup_ring_neighbours(char *information[]) {
 crud_packet *get_blank_crud_packet() {
     crud_packet *blank = malloc(sizeof(crud_packet));
     if (blank == NULL) {
-        warn("%s\n", strerror(errno));
-        return NULL;
+        panic("%s\n", strerror(errno));
     }
 
     blank->reserved = 0;
@@ -169,8 +169,7 @@ crud_packet *get_blank_crud_packet() {
 crud_packet *initialize_crud_packet_with_values(crud_action a, bytebuffer *key, bytebuffer *value) {
     crud_packet *pkg = calloc(1, sizeof(crud_packet));
     if (pkg == NULL) {
-        warn("%s\n", strerror(errno));
-        return NULL;
+        panic("%s\n", strerror(errno));
     }
 
     pkg->action = a;
@@ -252,6 +251,10 @@ uint8_t *read_n_bytes_from_file(int fd, uint32_t amount) {
     if (amount == 0) return NULL;
 
     uint8_t *bytes = calloc(1, amount);
+    if (bytes == NULL) {
+        panic("%s\n", strerror(errno));
+    }
+
     int received_bytes = 0;
     uint32_t total_bytes = 0;
 
@@ -284,6 +287,9 @@ int write_n_bytes_to_file(int fd, uint8_t *bytes, uint32_t amount) {
 
 char *ip4_to_string(struct in_addr *ip4) {
     char *ip4_repr = malloc(INET_ADDRSTRLEN);
+    if (ip4_repr == NULL) {
+        panic("%s\n", strerror(errno));
+    }
     inet_ntop(AF_INET, ip4, ip4_repr, INET_ADDRSTRLEN);
     return ip4_repr;
 }
@@ -404,8 +410,7 @@ int setup_tcp_listener(char *port) {
 
     if (listen(socket_fd, 10) == -1) {
         close(socket_fd);
-        warn("%s\n", strerror(errno));
-        return -1;
+        panic("%s\n", strerror(errno));
     }
 
     debug("Managed to setup TCP listener on port %s!\n", port);
@@ -415,6 +420,10 @@ int setup_tcp_listener(char *port) {
 
 generic_packet *get_blank_unknown_packet() {
     generic_packet *blank = malloc(sizeof(generic_packet));
+    if (blank == NULL) {
+        panic("%s\n", strerror(errno));
+    }
+
     blank->contents = NULL;
     blank->type = PROTO_UNDEF;
     return blank;
