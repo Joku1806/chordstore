@@ -97,7 +97,7 @@ int main(int argc, char *argv[]) {
                         crud_packet *client_request = (crud_packet *)request->contents;
                         uint16_t hash_value = 0;
                         memcpy(&hash_value, client_request->key->contents, sizeof(uint16_t) > client_request->key->length ? client_request->key->length : sizeof(uint16_t));
-
+                        hash_value = ntohs(hash_value);
                         client_info *new = malloc(sizeof(client_info));
                         if (new == NULL) {
                             panic("%s\n", strerror(errno));
