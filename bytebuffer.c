@@ -44,7 +44,7 @@ void bytebuffer_transfer_ownership(bytebuffer* buf1, bytebuffer* buf2) {
 
 void print_bytebuffer(bytebuffer* buffer) {
     for (uint32_t i = 0; i < buffer->length; i++) {
-        fprintf(stderr, "%c", buffer->contents[i]);
+        fprintf(stderr, "%#x ", buffer->contents[i]);
     }
 }
 
