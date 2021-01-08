@@ -43,19 +43,14 @@ void receive_chord_packet(int socket_fd, chord_packet *pkg, parse_mode m) {
     memcpy(&nw_node_id, contents + 2, sizeof(uint16_t));
     pkg->node_id = ntohs(nw_node_id);
 
-    uint32_t nw_node_ip = 0;
-    memcpy(&nw_node_ip, contents + 4, sizeof(uint32_t));
-    pkg->node_ip = (in_addr_t)ntohl(nw_node_ip);
-
-    uint16_t nw_node_port = 0;
-    memcpy(&nw_node_port, contents + 8, sizeof(uint16_t));
-    pkg->node_port = ntohs(nw_node_port);
+    memcpy(&pkg->node_ip, contents + 4, sizeof(uint32_t));
+    memcpy(&pkg->node_port, contents + 8, sizeof(uint16_t));
 
     struct in_addr ip_wrapper = {
         .s_addr = pkg->node_ip,
     };
     char *ip4_repr = ip4_to_string(&ip_wrapper);
-    debug("Got chord packet with action = %#x, Hash ID = %#x, Node IP = %s and Node Port = %d from socket %d.\n", pkg->action, pkg->hash_id, ip4_repr, pkg->node_port, socket_fd);
+    debug("Got chord packet with action = %#x, Hash ID = %#x, Node IP = %s and Node Port = %d from socket %d.\n", pkg->action, pkg->hash_id, ip4_repr, ntohl(pkg->node_port), socket_fd);
     free(ip4_repr);
     free(contents);
 }
@@ -64,21 +59,19 @@ int send_chord_packet(int socket_fd, chord_packet *pkg) {
     uint8_t header = 0x80 | (pkg->reserved << 2) | pkg->action;
     uint16_t nw_hash_id = htons(pkg->hash_id);
     uint16_t nw_node_id = htons(pkg->node_id);
-    uint32_t nw_node_ip = htonl(pkg->node_ip);
-    uint16_t nw_node_port = htons(pkg->node_port);
 
     struct in_addr ip_wrapper = {
         .s_addr = pkg->node_ip,
     };
     char *ip4_repr = ip4_to_string(&ip_wrapper);
-    debug("Sending chord packet with action = %#x, Hash ID = %#x, Node IP = %s and Node Port = %d over socket %d.\n", pkg->action, pkg->hash_id, ip4_repr, pkg->node_port, socket_fd);
+    debug("Sending chord packet with action = %#x, Hash ID = %#x, Node IP = %s and Node Port = %d over socket %d.\n", pkg->action, pkg->hash_id, ip4_repr, ntohl(pkg->node_port), socket_fd);
     free(ip4_repr);
 
     if (write_n_bytes_to_file(socket_fd, &header, sizeof(uint8_t)) < 0 ||
         write_n_bytes_to_file(socket_fd, (uint8_t *)&nw_hash_id, sizeof(uint16_t)) < 0 ||
         write_n_bytes_to_file(socket_fd, (uint8_t *)&nw_node_id, sizeof(uint16_t)) < 0 ||
-        write_n_bytes_to_file(socket_fd, (uint8_t *)&nw_node_ip, sizeof(uint32_t)) < 0 ||
-        write_n_bytes_to_file(socket_fd, (uint8_t *)&nw_node_port, sizeof(uint16_t)) < 0) {
+        write_n_bytes_to_file(socket_fd, (uint8_t *)&pkg->node_ip, sizeof(uint32_t)) < 0 ||
+        write_n_bytes_to_file(socket_fd, (uint8_t *)&pkg->node_port, sizeof(uint16_t)) < 0) {
         warn("Failed to send packet.\n");
         return -1;
     }
@@ -122,6 +115,7 @@ peer *setup_ring_neighbours(char *information[]) {
         if (!string_to_uint16(information[i + 2], &nodes[i / 3].node_port)) {
             panic("Error converting node port.\n");
         }
+        nodes[i / 3].node_port = htons(nodes[i / 3].node_port);
 
         struct addrinfo peer_hints, *peer_address_list;
         memset(&peer_hints, 0, sizeof peer_hints);
@@ -135,6 +129,7 @@ peer *setup_ring_neighbours(char *information[]) {
         }
 
         nodes[i / 3].node_ip = ((struct sockaddr_in *)peer_address_list->ai_addr)->sin_addr.s_addr;
+        debug("Initialized Peer with ID=%d, Port=%#x and IP=%#x\n", nodes[i / 3].node_id, nodes[i / 3].node_port, nodes[i / 3].node_ip);
     }
 
     nodes[0].area_start = nodes[1].node_id + 1;
@@ -301,25 +296,25 @@ int establish_tcp_connection_from_ip4(uint32_t ip4, uint16_t port) {
         .sin_addr = {
             .s_addr = ip4,
         },
-        .sin_port = htons(port),
+        .sin_port = port,
     };
     memset(&address.sin_zero, 0, sizeof(address.sin_zero));
 
     char *ip4_repr = ip4_to_string(&address.sin_addr);
+    uint32_t dbg_port = ntohl(port);
     if ((socket_fd = socket(PF_INET, SOCK_STREAM, 0)) == -1) {
-        warn("%s\n", strerror(errno));
         free(ip4_repr);
-        return -1;
+        panic("%s\n", strerror(errno));
     }
 
     for (size_t i = 0; i < CONNECTION_RETRIES; i++) {
         if (connect(socket_fd, (struct sockaddr *)&address, sizeof(address)) == 0) break;
         if (i == CONNECTION_RETRIES - 1) {
             close(socket_fd);
-            panic("Couldn't establish a connection with %s:%d.\n", ip4_repr, port);
+            panic("Couldn't establish a connection with %s:%d.\n", ip4_repr, dbg_port);
         }
 
-        warn("%s. Couldn't establish a connection with %s:%d on try %ld, retrying now.\n", strerror(errno), ip4_repr, port, i + 1);
+        warn("%s. Couldn't establish a connection with %s:%d on try %ld, retrying now.\n", strerror(errno), ip4_repr, dbg_port, i + 1);
         struct timespec ts = {
             .tv_sec = CONNECTION_TIMEOUT / 1000,
             .tv_nsec = (CONNECTION_TIMEOUT % 1000) * 1000000,
