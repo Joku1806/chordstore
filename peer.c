@@ -106,7 +106,7 @@ int main(int argc, char *argv[]) {
                         new->fd = pfds_item.fd;
                         new->request = client_request;
                         debug("Storing client information with Key %#x, fd %d and request %p in internal Hash Table.\n", new->key, new->fd, new->request);
-                        HASH_ADD_INT(internal_hash_head, key, new);
+                        HASH_ADD_KEYPTR(hh, internal_hash_head, &new->key, sizeof(new->key), new);
 
                         if (peer_stores_hashvalue(&nodes[0], hash_value)) {
                             debug("I am responsible for the hash value, now sending back answer to Client.\n");
@@ -153,7 +153,7 @@ int main(int argc, char *argv[]) {
                         if (ring_message->action == REPLY) {
                             debug("Got a reply, now I know who is responsible for the hash value. Trying to send answer to Client over one redirection.\n");
                             client_info *client = NULL;
-                            HASH_FIND_INT(internal_hash_head, &ring_message->hash_id, client);
+                            HASH_FIND(hh, internal_hash_head, &ring_message->hash_id, sizeof(ring_message->hash_id), client);
                             if (client == NULL) {
                                 warn("No client has sent a request with Key %#x. Something went wrong inside the ring or the client closed the connection.\n", ring_message->hash_id);
                                 continue;

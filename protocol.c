@@ -50,7 +50,7 @@ void receive_chord_packet(int socket_fd, chord_packet *pkg, parse_mode m) {
         .s_addr = pkg->node_ip,
     };
     char *ip4_repr = ip4_to_string(&ip_wrapper);
-    debug("Got chord packet with action = %#x, Hash ID = %#x, Node IP = %s and Node Port = %d from socket %d.\n", pkg->action, pkg->hash_id, ip4_repr, ntohl(pkg->node_port), socket_fd);
+    debug("Got chord packet with action = %#x, Hash ID = %#x, Node IP = %s and Node Port = %d from socket %d.\n", pkg->action, pkg->hash_id, ip4_repr, ntohs(pkg->node_port), socket_fd);
     free(ip4_repr);
     free(contents);
 }
@@ -64,7 +64,7 @@ int send_chord_packet(int socket_fd, chord_packet *pkg) {
         .s_addr = pkg->node_ip,
     };
     char *ip4_repr = ip4_to_string(&ip_wrapper);
-    debug("Sending chord packet with action = %#x, Hash ID = %#x, Node IP = %s and Node Port = %d over socket %d.\n", pkg->action, pkg->hash_id, ip4_repr, ntohl(pkg->node_port), socket_fd);
+    debug("Sending chord packet with action = %#x, Hash ID = %#x, Node IP = %s and Node Port = %d over socket %d.\n", pkg->action, pkg->hash_id, ip4_repr, ntohs(pkg->node_port), socket_fd);
     free(ip4_repr);
 
     if (write_n_bytes_to_file(socket_fd, &header, sizeof(uint8_t)) < 0 ||
@@ -129,7 +129,6 @@ peer *setup_ring_neighbours(char *information[]) {
         }
 
         nodes[i / 3].node_ip = ((struct sockaddr_in *)peer_address_list->ai_addr)->sin_addr.s_addr;
-        debug("Initialized Peer with ID=%d, Port=%#x and IP=%#x\n", nodes[i / 3].node_id, nodes[i / 3].node_port, nodes[i / 3].node_ip);
     }
 
     nodes[0].area_start = nodes[1].node_id + 1;
@@ -301,7 +300,7 @@ int establish_tcp_connection_from_ip4(uint32_t ip4, uint16_t port) {
     memset(&address.sin_zero, 0, sizeof(address.sin_zero));
 
     char *ip4_repr = ip4_to_string(&address.sin_addr);
-    uint32_t dbg_port = ntohl(port);
+    uint16_t dbg_port = ntohs(port);
     if ((socket_fd = socket(PF_INET, SOCK_STREAM, 0)) == -1) {
         free(ip4_repr);
         panic("%s\n", strerror(errno));

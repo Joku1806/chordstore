@@ -7,7 +7,7 @@
 
 typedef struct {
     UT_hash_handle hh;
-    int key;
+    uint16_t key;
     int fd;
     crud_packet* request;
 } client_info;
