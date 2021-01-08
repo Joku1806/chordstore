@@ -207,10 +207,10 @@ void receive_crud_packet(int socket_fd, crud_packet *pkg, parse_mode m) {
         panic("Couldn't get packet header.\n");
     }
 
-    memcpy(&pkg->key->length, header, sizeof(pkg->key->length));
+    memcpy(&pkg->key->length, header, sizeof(uint16_t));
     pkg->key->length = ntohs(pkg->key->length);
 
-    memcpy(&pkg->value->length, header + sizeof(pkg->key->length), sizeof(pkg->value->length));
+    memcpy(&pkg->value->length, header + sizeof(uint16_t), sizeof(pkg->value->length));
     pkg->value->length = ntohl(pkg->value->length);
 
     free(header);
