@@ -48,7 +48,7 @@ int main(int argc, char *argv[]) {
     }
 
     struct sigaction sa;
-    memset(&sa, 0, sizeof(struct sigaction));
+    memset(&sa, 0, sizeof(sa));
     sa.sa_handler = close_handler;
     sigaction(SIGINT, &sa, NULL);
     sigaction(SIGHUP, &sa, NULL);

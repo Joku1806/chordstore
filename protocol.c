@@ -17,7 +17,7 @@ chord_packet *get_blank_chord_packet() {
         panic("%s\n", strerror(errno));
     }
 
-    memset(blank, 0, sizeof(chord_packet));
+    memset(blank, 0, sizeof(blank));
     return blank;
 }
 
@@ -34,17 +34,21 @@ void receive_chord_packet(int socket_fd, chord_packet *pkg, parse_mode m) {
     }
 
     uint8_t *contents = read_n_bytes_from_file(socket_fd, CHORD_PACKET_SIZE);
+    size_t read_offset = 0;
 
-    uint16_t nw_hash_id = 0;
-    memcpy(&nw_hash_id, contents, sizeof(uint16_t));
-    pkg->hash_id = ntohs(nw_hash_id);
+    memcpy(&pkg->hash_id, contents + read_offset, sizeof(pkg->hash_id));
+    pkg->hash_id = ntohs(pkg->hash_id);
+    read_offset += sizeof(pkg->hash_id);
 
-    uint16_t nw_node_id = 0;
-    memcpy(&nw_node_id, contents + 2, sizeof(uint16_t));
-    pkg->node_id = ntohs(nw_node_id);
+    memcpy(&pkg->node_id, contents + read_offset, sizeof(pkg->node_id));
+    pkg->node_id = ntohs(pkg->node_id);
+    read_offset += sizeof(pkg->node_id);
 
-    memcpy(&pkg->node_ip, contents + 4, sizeof(uint32_t));
-    memcpy(&pkg->node_port, contents + 8, sizeof(uint16_t));
+    memcpy(&pkg->node_ip, contents + read_offset, sizeof(pkg->node_ip));
+    read_offset += sizeof(pkg->node_ip);
+
+    memcpy(&pkg->node_port, contents + read_offset, sizeof(pkg->node_port));
+    read_offset += sizeof(pkg->node_port);
 
     struct in_addr ip_wrapper = {
         .s_addr = pkg->node_ip,
@@ -68,10 +72,10 @@ int send_chord_packet(int socket_fd, chord_packet *pkg) {
     free(ip4_repr);
 
     if (write_n_bytes_to_file(socket_fd, &header, sizeof(uint8_t)) < 0 ||
-        write_n_bytes_to_file(socket_fd, (uint8_t *)&nw_hash_id, sizeof(uint16_t)) < 0 ||
-        write_n_bytes_to_file(socket_fd, (uint8_t *)&nw_node_id, sizeof(uint16_t)) < 0 ||
-        write_n_bytes_to_file(socket_fd, (uint8_t *)&pkg->node_ip, sizeof(uint32_t)) < 0 ||
-        write_n_bytes_to_file(socket_fd, (uint8_t *)&pkg->node_port, sizeof(uint16_t)) < 0) {
+        write_n_bytes_to_file(socket_fd, (uint8_t *)&nw_hash_id, sizeof(nw_hash_id)) < 0 ||
+        write_n_bytes_to_file(socket_fd, (uint8_t *)&nw_node_id, sizeof(nw_node_id)) < 0 ||
+        write_n_bytes_to_file(socket_fd, (uint8_t *)&pkg->node_ip, sizeof(pkg->node_ip)) < 0 ||
+        write_n_bytes_to_file(socket_fd, (uint8_t *)&pkg->node_port, sizeof(pkg->node_port)) < 0) {
         warn("Failed to send packet.\n");
         return -1;
     }
@@ -203,13 +207,11 @@ void receive_crud_packet(int socket_fd, crud_packet *pkg, parse_mode m) {
         panic("Couldn't get packet header.\n");
     }
 
-    uint16_t nw_key_length = 0;
-    memcpy(&nw_key_length, header, sizeof(uint16_t));
-    pkg->key->length = ntohs(nw_key_length);
+    memcpy(&pkg->key->length, header, sizeof(pkg->key->length));
+    pkg->key->length = ntohs(pkg->key->length);
 
-    uint32_t nw_value_length = 0;
-    memcpy(&nw_value_length, header + 2, sizeof(uint32_t));
-    pkg->value->length = ntohl(nw_value_length);
+    memcpy(&pkg->value->length, header + sizeof(pkg->key->length), sizeof(pkg->value->length));
+    pkg->value->length = ntohl(pkg->value->length);
 
     free(header);
 
@@ -217,7 +219,7 @@ void receive_crud_packet(int socket_fd, crud_packet *pkg, parse_mode m) {
     uint8_t *value = read_n_bytes_from_file(socket_fd, pkg->value->length);
 
     pkg->key->contents = key;
-    pkg->key->contents_are_freeable = value == NULL ? 0 : 1;
+    pkg->key->contents_are_freeable = key == NULL ? 0 : 1;
     pkg->value->contents = value;
     pkg->value->contents_are_freeable = value == NULL ? 0 : 1;
 
@@ -229,9 +231,9 @@ int send_crud_packet(int socket_fd, crud_packet *pkg) {
     uint16_t nw_key_length = htons((uint16_t)pkg->key->length);
     uint32_t nw_value_length = htonl(pkg->value->length);
 
-    if (write_n_bytes_to_file(socket_fd, &flags, sizeof(uint8_t)) < 0 ||
-        write_n_bytes_to_file(socket_fd, (uint8_t *)&nw_key_length, sizeof(uint16_t)) < 0 ||
-        write_n_bytes_to_file(socket_fd, (uint8_t *)&nw_value_length, sizeof(uint32_t)) < 0 ||
+    if (write_n_bytes_to_file(socket_fd, &flags, sizeof(flags)) < 0 ||
+        write_n_bytes_to_file(socket_fd, (uint8_t *)&nw_key_length, sizeof(nw_key_length)) < 0 ||
+        write_n_bytes_to_file(socket_fd, (uint8_t *)&nw_value_length, sizeof(nw_value_length)) < 0 ||
         write_n_bytes_to_file(socket_fd, pkg->key->contents, pkg->key->length) < 0 ||
         write_n_bytes_to_file(socket_fd, pkg->value->contents, pkg->value->length) < 0) {
         warn("Failed to send packet.\n");
