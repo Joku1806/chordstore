@@ -75,6 +75,7 @@ int main(int argc, char *argv[]) {
             struct pollfd pfds_item = pfds_VLA->items[i].fd_status;
             if (pfds_item.revents & POLLIN) {
                 // data is ready to recv() on this socket
+                debug("Got POLLIN on fd %d\n", pfds_item.fd);
                 if (pfds_item.fd == listener_fd) {
                     // socket is main socket
                     debug("Got new connection on listener socket (fd=%d)\n", listener_fd);
@@ -189,6 +190,7 @@ int main(int argc, char *argv[]) {
                                 int peer_fd = establish_tcp_connection_from_ip4(nodes[2].node_ip, nodes[2].node_port);
                                 send_chord_packet(peer_fd, ring_message);
                                 close(peer_fd);
+                                VLA_delete_by_index(pfds_VLA, i);
                             }
                         }
 
