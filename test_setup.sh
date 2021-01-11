@@ -1,6 +1,5 @@
 #!/bin/bash
 
-
 ./build/peer 1000  localhost 6500 53428 localhost 6504 14107 localhost 6501&
 ./build/peer 14107 localhost 6501 1000  localhost 6500 27214 localhost 6502&
 ./build/peer 27214 localhost 6502 14107 localhost 6501 40321 localhost 6503&
