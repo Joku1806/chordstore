@@ -75,7 +75,6 @@ int main(int argc, char *argv[]) {
             struct pollfd pfds_item = pfds_VLA->items[i].fd_status;
             if (pfds_item.revents & POLLIN) {
                 // data is ready to recv() on this socket
-                debug("Got POLLIN on fd %d\n", pfds_item.fd);
                 if (pfds_item.fd == listener_fd) {
                     // socket is main socket
                     debug("Got new connection on listener socket (fd=%d)\n", listener_fd);
@@ -146,7 +145,7 @@ int main(int argc, char *argv[]) {
                             send_chord_packet(peer_fd, pkg);
                             close(peer_fd);
                             free(pkg);
-                            VLA_delete_by_index(pfds_VLA, i);
+                            VLA_delete_by_index(pfds_VLA, i);  // keine Ahnung ob das wirklich richtig ist
                         }
                     } else if (request->type == PROTO_CHORD) {
                         chord_packet *ring_message = (chord_packet *)request->contents;
