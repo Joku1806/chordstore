@@ -18,6 +18,7 @@ VLA* VLA_initialize(size_t capacity, size_t item_size) {
     return v;
 }
 
+// Vergrößert die capacity des VLA um factor.
 void VLA_expand(VLA* v, double factor) {
     // ceil() wird benutzt, damit man bei 1.x Faktoren über die 1er-capacity hinauskommt
     v->capacity = (size_t)ceil(v->capacity * factor);
@@ -37,9 +38,8 @@ void VLA_insert(VLA* v, void* address, size_t amount) {
     v->memory->length += amount * v->item_size;
 }
 
-// Löscht das Item an Stelle idx, indem das letzte Item dahin kopiert
-// und die Länge um v->item_size verringert wird. Diese Methode erhält nicht die Reihenfolge der Items,
-// pass also auf, dass das im aufrufenden Code nicht wichtig ist.
+// Löscht das idx'te Item, indem das letzte Item dorthin kopiert und die Länge um v->item_size verringert wird.
+// Diese Methode erhält nicht die Reihenfolge der Items, pass also auf, dass das im aufrufenden Code nicht wichtig ist.
 void VLA_delete_by_index(VLA* v, size_t idx) {
     if (idx * v->item_size >= v->memory->length) {
         warn("Index %ld is out of bounds for VLA with length=%ld. Skipping deletion, check your indices.\n", idx, v->memory->length / v->item_size);
@@ -50,6 +50,7 @@ void VLA_delete_by_index(VLA* v, size_t idx) {
     v->memory->length -= v->item_size;
 }
 
+// Gibt einen Pointer zu dem idx'ten pollfd struct im VLA zurück
 struct pollfd* VLA_get_pollfd(VLA* v, size_t idx) {
     if (idx * v->item_size >= v->memory->length) {
         warn("Index %ld is out of bounds for VLA with length=%ld. Can't get item, check your indices.\n", idx, v->memory->length / v->item_size);
@@ -59,7 +60,8 @@ struct pollfd* VLA_get_pollfd(VLA* v, size_t idx) {
     return (struct pollfd*)(v->memory->contents + idx * v->item_size);
 }
 
-// Extrahiert alle Elemente des VLA in einen Bytebuffer.
+// Erstellt eine Pointer-Kopie des Bytebuffers und vertauscht die freeable-bits,
+// sodass der VLA gelöscht werden kann, ohne dass man danach mit dem erstellten Bytebuffer einen use-after-free kriegt
 bytebuffer* VLA_into_bytebuffer(VLA* v) {
     bytebuffer* buffer = initialize_bytebuffer_with_values(NULL, 0);
     bytebuffer_shallow_copy(buffer, v->memory);
