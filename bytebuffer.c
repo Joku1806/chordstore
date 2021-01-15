@@ -5,6 +5,21 @@
 #include "bytebuffer.h"
 #include "debug.h"
 
+bytebuffer* initialize_bytebuffer_with_capacity(size_t capacity) {
+    bytebuffer* buffer = malloc(sizeof(bytebuffer));
+    if (buffer == NULL) {
+        panic("%s\n", strerror(errno));
+    }
+    buffer->contents = malloc(capacity);
+    if (buffer->contents == NULL) {
+        panic("%s\n", strerror(errno));
+    }
+    buffer->contents_are_freeable = 1;
+    buffer->length = 0;
+
+    return buffer;
+}
+
 bytebuffer* initialize_bytebuffer_with_values(uint8_t* contents, uint32_t length) {
     bytebuffer* buffer = malloc(sizeof(bytebuffer));
     if (buffer == NULL) {

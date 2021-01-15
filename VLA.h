@@ -7,21 +7,22 @@
 #include <poll.h>
 #include "bytebuffer.h"
 
-typedef union {
-    uint8_t byte;
-    struct pollfd fd_status;
-} VLA_data;
+typedef enum {
+    VLA_UINT8 = sizeof(uint8_t),
+    VLA_POLLFD = sizeof(struct pollfd)
+} itemsize;
 
 typedef struct {
     size_t capacity;
-    size_t length;
-    VLA_data* items;
+    itemsize dt_size;
+    bytebuffer* memory;
 } VLA;
 
-VLA* VLA_initialize_with_capacity(size_t cap);
-void VLA_insert(VLA* v, VLA_data item);
+VLA* VLA_initialize(size_t capacity, itemsize dt_size);
+void VLA_insert(VLA* v, void* address, size_t amount);
 void VLA_delete_by_index(VLA* v, size_t idx);
+struct pollfd* VLA_get_pollfd(VLA* v, size_t idx);
 bytebuffer* VLA_into_bytebuffer(VLA* v);
-void VLA_cleanup(VLA* v, void (*handler)(VLA_data));
+void VLA_cleanup(VLA* v, void (*handler)(void*));
 
 #endif

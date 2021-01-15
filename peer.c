@@ -54,25 +54,26 @@ int main(int argc, char *argv[]) {
     sigaction(SIGHUP, &sa, NULL);
     sigaction(SIGTERM, &sa, NULL);
 
-    VLA *pfds_VLA = VLA_initialize_with_capacity(5);
-    // add main socket to pfds_VLA set
-    VLA_data new_item = {
-        .fd_status.fd = listener_fd,
-        .fd_status.events = POLLIN,
+    VLA *pfds_VLA = VLA_initialize(5, VLA_POLLFD);
+
+    // add listener socket to pfds_VLA set
+    struct pollfd listener_socket = {
+        .fd = listener_fd,
+        .events = POLLIN,
     };
-    VLA_insert(pfds_VLA, new_item);
+    VLA_insert(pfds_VLA, &listener_socket, 1);
 
     while (is_running) {
         struct sockaddr_storage their_address;
         socklen_t addr_size = sizeof their_address;
-        int poll_count = poll((struct pollfd *)pfds_VLA->items, pfds_VLA->length, -1);
+        int poll_count = poll((struct pollfd *)pfds_VLA->memory->contents, pfds_VLA->memory->length / pfds_VLA->dt_size, -1);
 
         if (poll_count == -1) {
             panic("%s\n", strerror(errno));
         }
 
-        for (int i = 0; i < pfds_VLA->length; i++) {
-            struct pollfd pfds_item = pfds_VLA->items[i].fd_status;
+        for (int i = 0; i < pfds_VLA->memory->length / pfds_VLA->dt_size; i++) {
+            struct pollfd pfds_item = *VLA_get_pollfd(pfds_VLA, i);
             if (pfds_item.revents & POLLIN) {
                 // data is ready to recv() on this socket
                 if (pfds_item.fd == listener_fd) {
@@ -83,11 +84,11 @@ int main(int argc, char *argv[]) {
                         if (errno != EINTR) warn("%s\n", strerror(errno));
                         continue;
                     }
-                    VLA_data new_connection = {
-                        .fd_status.fd = connect_fd,
-                        .fd_status.events = POLLIN,
+                    struct pollfd new_connection = {
+                        .fd = connect_fd,
+                        .events = POLLIN,
                     };
-                    VLA_insert(pfds_VLA, new_connection);
+                    VLA_insert(pfds_VLA, &new_connection, 1);
                 } else {
                     // socket is not main socket
                     generic_packet *request = read_unknown_packet(pfds_item.fd);

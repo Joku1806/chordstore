@@ -11,7 +11,7 @@
 
 // Liest Bytes vom File Descriptor fd, bis die Verbindung beendet wird oder es nichts mehr zu lesen gibt.
 bytebuffer *read_from_file(int fd) {
-    VLA *stream = VLA_initialize_with_capacity(MAX_DATA_ACCEPT);
+    VLA *stream = VLA_initialize(MAX_DATA_ACCEPT, VLA_UINT8);
     uint8_t *bytes = calloc(1, MAX_DATA_ACCEPT);
     if (bytes == NULL) {
         panic("%s\n", strerror(errno));
@@ -24,13 +24,7 @@ bytebuffer *read_from_file(int fd) {
     // Nach jedem read() müssen also nur noch die gelesen Bytes in einen variablen Buffer kopiert werden. Das ist jetzt möglich,
     // da man durch den Rückgabewert von read() weiß, wie viele Bytes wirklich eingelesen wurden.
     while ((received_bytes = read(fd, bytes, MAX_DATA_ACCEPT)) > 0) {
-        // TODO: Finde Weg, wie man den ganzen Block auf einmal einfügen kann. Das wäre in Fällen, in denen eine große
-        // Anzahl an Bytes gespeichert werden muss um einiges effizienter, weil im VLA besser vorausgesehen werden kann,
-        // wann vergrößert werden muss.
-        for (size_t i = 0; i < received_bytes; i++) {
-            VLA_data union_pkg = {.byte = bytes[i]};
-            VLA_insert(stream, union_pkg);
-        }
+        VLA_insert(stream, bytes, received_bytes);
     }
 
     if (received_bytes == -1) {
@@ -40,7 +34,7 @@ bytebuffer *read_from_file(int fd) {
         return NULL;
     }
 
-    if (stream->length == 0) {
+    if (stream->memory->length == 0) {
         warn("Couldn't read anything from file descriptor %d.\n", fd);
         free(bytes);
         VLA_cleanup(stream, NULL);
@@ -49,7 +43,7 @@ bytebuffer *read_from_file(int fd) {
 
     free(bytes);
     bytebuffer *buffer = VLA_into_bytebuffer(stream);
-    debug("Read %ld bytes from file descriptor %d:\n%s\n", stream->length, fd, (char *)buffer->contents);
+    debug("Read %ld bytes from file descriptor %d:\n%.*s\n", stream->memory->length, fd, stream->memory->length, (char *)buffer->contents);
     VLA_cleanup(stream, NULL);
     return buffer;
 }
@@ -85,9 +79,7 @@ int main(int argc, char **argv) {
         // Nur von stdin lesen, wenn man auch ein value zum Server senden muss.
         // Wenn man das außerhalb von dem if machen würde, würde er bei GET und DELETE in einer Endlosschleife feststecken,
         // weil es halt nichts zu lesen gibt.
-        // contents_are_freeable wird hier auf 1 gesetzt, weil in read_from_file() malloc()/realloc() gemacht wird.
         value_buffer = read_from_file(STDIN_FILENO);
-        value_buffer->contents_are_freeable = 1;
     } else if (strcmp(action, "DELETE") == 0) {
         a |= DEL;
         value_buffer = initialize_bytebuffer_with_values(NULL, 0);
