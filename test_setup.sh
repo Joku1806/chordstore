@@ -1,14 +1,11 @@
 #!/bin/bash
 
-./build/peer 1000  localhost 6500 53428 localhost 6504 14107 localhost 6501&
-./build/peer 14107 localhost 6501 1000  localhost 6500 27214 localhost 6502&
-./build/peer 27214 localhost 6502 14107 localhost 6501 40321 localhost 6503&
-./build/peer 40321 localhost 6503 27214 localhost 6502 53428 localhost 6504&
-./build/peer 53428 localhost 6504 40321 localhost 6503 1000  localhost 6500&
+./build/peer 10000 127.0.0.1 10000 16000 127.0.0.1 16000 12000 127.0.0.1 12000&
+./build/peer 12000 127.0.0.1 12000 10000 127.0.0.1 10000 14000 127.0.0.1 14000&
+./build/peer 14000 127.0.0.1 14000 12000 127.0.0.1 12000 16000 127.0.0.1 16000&
+./build/peer 16000 127.0.0.1 16000 14000 127.0.0.1 14000 10000 127.0.0.1 10000&
 
-echo "100% !!11einself!" | ./build/client localhost 6500 SET My\ C-Programming-Skillz
-./build/client localhost 6504 DELETE My\ C-Programming-Skillz
-echo "sendto()sendto()sendto()sendto()" | ./build/client localhost 6501 SET My\ C-Programming-Skillz
-./build/client localhost 6500 GET My\ C-Programming-Skillz
+echo "ding dong the witch is dead" | ./build/client localhost 14000 SET test
+./build/client localhost 14000 GET test
 
 killall peer
