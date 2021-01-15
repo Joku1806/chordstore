@@ -29,7 +29,7 @@ void VLA_expand(VLA* v, double factor) {
 
 // Fügt ein Item ans Ende des VLA hinzu und vergrößert ihn vorher, wenn nötig.
 void VLA_insert(VLA* v, void* address, size_t amount) {
-    if (v->memory->length + amount >= v->capacity) {
+    if (v->memory->length + amount * v->item_size >= v->capacity) {
         VLA_expand(v, (double)(v->memory->length + amount * v->item_size) / (double)v->capacity * 1.5);  // 1.5 statt 2, weil es vor allem für viele Items weniger Memory verbraucht und trotzdem genauso gut funktioniert
     }
 
