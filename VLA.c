@@ -5,20 +5,15 @@
 #include "debug.h"
 
 // Initialisiert einen VLA mit capacity vielen Bytes reserviert.
-VLA* VLA_initialize(size_t capacity, itemsize dt_size) {
-    if (dt_size != VLA_UINT8 && dt_size != VLA_POLLFD) {
-        warn("Item type with size=%d is not accepted by the VLA.\n", dt_size);
-        return NULL;
-    }
-
+VLA* VLA_initialize(size_t capacity, size_t item_size) {
     VLA* v = calloc(1, sizeof(VLA));
     if (v == NULL) {
         panic("%s\n", strerror(errno));
     }
 
-    v->capacity = capacity * dt_size;
-    v->dt_size = dt_size;
-    v->memory = initialize_bytebuffer_with_capacity(capacity * dt_size);
+    v->capacity = capacity * item_size;
+    v->item_size = item_size;
+    v->memory = initialize_bytebuffer_with_capacity(capacity * item_size);
 
     return v;
 }
@@ -35,33 +30,33 @@ void VLA_expand(VLA* v, double factor) {
 // Fügt ein Item ans Ende des VLA hinzu und vergrößert ihn vorher, wenn nötig.
 void VLA_insert(VLA* v, void* address, size_t amount) {
     if (v->memory->length + amount >= v->capacity) {
-        VLA_expand(v, (double)(v->memory->length + amount * v->dt_size) / (double)v->capacity * 1.5);  // 1.5 statt 2, weil es vor allem für viele Items weniger Memory verbraucht und trotzdem genauso gut funktioniert
+        VLA_expand(v, (double)(v->memory->length + amount * v->item_size) / (double)v->capacity * 1.5);  // 1.5 statt 2, weil es vor allem für viele Items weniger Memory verbraucht und trotzdem genauso gut funktioniert
     }
 
-    memcpy(v->memory->contents + v->memory->length, address, amount * v->dt_size);
-    v->memory->length += amount * v->dt_size;
+    memcpy(v->memory->contents + v->memory->length, address, amount * v->item_size);
+    v->memory->length += amount * v->item_size;
 }
 
 // Löscht das Item an Stelle idx, indem das letzte Item dahin kopiert
-// und die Länge um v->dt_size verringert wird. Diese Methode erhält nicht die Reihenfolge der Items,
+// und die Länge um v->item_size verringert wird. Diese Methode erhält nicht die Reihenfolge der Items,
 // pass also auf, dass das im aufrufenden Code nicht wichtig ist.
 void VLA_delete_by_index(VLA* v, size_t idx) {
-    if (idx * v->dt_size >= v->memory->length) {
-        warn("Index %ld is out of bounds for VLA with length=%ld. Skipping deletion, check your indices.\n", idx, v->memory->length / v->dt_size);
+    if (idx * v->item_size >= v->memory->length) {
+        warn("Index %ld is out of bounds for VLA with length=%ld. Skipping deletion, check your indices.\n", idx, v->memory->length / v->item_size);
         return;
     }
 
-    memcpy(v->memory->contents + idx * v->dt_size, v->memory->contents + v->memory->length - v->dt_size, v->dt_size);
-    v->memory->length -= v->dt_size;
+    memcpy(v->memory->contents + idx * v->item_size, v->memory->contents + v->memory->length - v->item_size, v->item_size);
+    v->memory->length -= v->item_size;
 }
 
 struct pollfd* VLA_get_pollfd(VLA* v, size_t idx) {
-    if (idx * v->dt_size >= v->memory->length) {
-        warn("Index %ld is out of bounds for VLA with length=%ld. Can't get item, check your indices.\n", idx, v->memory->length / v->dt_size);
+    if (idx * v->item_size >= v->memory->length) {
+        warn("Index %ld is out of bounds for VLA with length=%ld. Can't get item, check your indices.\n", idx, v->memory->length / v->item_size);
         return NULL;
     }
 
-    return (struct pollfd*)(v->memory->contents + idx * v->dt_size);
+    return (struct pollfd*)(v->memory->contents + idx * v->item_size);
 }
 
 // Extrahiert alle Elemente des VLA in einen Bytebuffer.
@@ -76,7 +71,7 @@ bytebuffer* VLA_into_bytebuffer(VLA* v) {
 // solange handler() != NULL ist und löscht danach den VLA selbst.
 void VLA_cleanup(VLA* v, void (*handler)(void*)) {
     if (handler != NULL) {
-        for (size_t i = 0; i < v->memory->length; i += v->dt_size) {
+        for (size_t i = 0; i < v->memory->length; i += v->item_size) {
             handler((uint8_t*)v->memory->contents + i);
         }
     }

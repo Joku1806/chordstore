@@ -54,7 +54,7 @@ int main(int argc, char *argv[]) {
     sigaction(SIGHUP, &sa, NULL);
     sigaction(SIGTERM, &sa, NULL);
 
-    VLA *pfds_VLA = VLA_initialize(5, VLA_POLLFD);
+    VLA *pfds_VLA = VLA_initialize(5, sizeof(struct pollfd));
 
     // add listener socket to pfds_VLA set
     struct pollfd listener_socket = {
@@ -66,13 +66,13 @@ int main(int argc, char *argv[]) {
     while (is_running) {
         struct sockaddr_storage their_address;
         socklen_t addr_size = sizeof their_address;
-        int poll_count = poll((struct pollfd *)pfds_VLA->memory->contents, pfds_VLA->memory->length / pfds_VLA->dt_size, -1);
+        int poll_count = poll((struct pollfd *)pfds_VLA->memory->contents, pfds_VLA->memory->length / pfds_VLA->item_size, -1);
 
         if (poll_count == -1) {
             panic("%s\n", strerror(errno));
         }
 
-        for (int i = 0; i < pfds_VLA->memory->length / pfds_VLA->dt_size; i++) {
+        for (int i = 0; i < pfds_VLA->memory->length / pfds_VLA->item_size; i++) {
             struct pollfd pfds_item = *VLA_get_pollfd(pfds_VLA, i);
             if (pfds_item.revents & POLLIN) {
                 // data is ready to recv() on this socket

@@ -11,7 +11,7 @@
 
 // Liest Bytes vom File Descriptor fd, bis die Verbindung beendet wird oder es nichts mehr zu lesen gibt.
 bytebuffer *read_from_file(int fd) {
-    VLA *stream = VLA_initialize(MAX_DATA_ACCEPT, VLA_UINT8);
+    VLA *stream = VLA_initialize(MAX_DATA_ACCEPT, sizeof(uint8_t));
     uint8_t *bytes = calloc(1, MAX_DATA_ACCEPT);
     if (bytes == NULL) {
         panic("%s\n", strerror(errno));
